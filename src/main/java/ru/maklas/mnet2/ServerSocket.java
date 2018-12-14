@@ -29,10 +29,10 @@ public class ServerSocket{
     private AtomicQueue<ConnectionRequest> connectionRequests;
 
     public ServerSocket(int port, ServerAuthenticator authenticator, Supplier<Serializer> serializerSupplier, DiscoveryHandler discoverer) throws SocketException{
-        this(new JavaUDPSocket(port), 512, 15000, 2500, 125, authenticator, serializerSupplier);
+        this(new JavaUDPSocket(port), 512, 15000, 2500, 125, authenticator, serializerSupplier, discoverer);
     }
 
-    public ServerSocket(UDPSocket udp, int bufferSize, int inactivityTimeout, int pingFrequency, int resendFrequency, ServerAuthenticator authenticator, Supplier<Serializer> serializerSupplier){
+    public ServerSocket(UDPSocket udp, int bufferSize, int inactivityTimeout, int pingFrequency, int resendFrequency, ServerAuthenticator authenticator, Supplier<Serializer> serializerSupplier, DiscoveryHandler discoverer){
         this.udp = udp;
         this.bufferSize = bufferSize;
         this.inactivityTimeout = inactivityTimeout;
@@ -44,11 +44,8 @@ public class ServerSocket{
         this.sendPacket = new DatagramPacket(new byte[0], 0);
         this.serializerSupplier = serializerSupplier;
         this.serializer = serializerSupplier.get();
-        new Thread(ServerSocket.this::run).start();
-    }
-
-    public void setDiscoverer(DiscoveryHandler discoverer){
         this.discoverer = discoverer;
+        new Thread(ServerSocket.this::run).start();
     }
 
     void run(){
