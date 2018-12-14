@@ -72,7 +72,7 @@ public class ServerSocket{
                 }
 
                 DatagramPacket dpacket = discoverer.writeDiscoveryData();
-                dpacket.setAddress(packet.getAddress());
+                dpacket.setSocketAddress(packet.getSocketAddress());
                 try{
                     udp.send(dpacket);
                 }catch(IOException ignored){}
