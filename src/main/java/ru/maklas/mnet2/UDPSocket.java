@@ -9,7 +9,7 @@ import java.net.SocketException;
  * Created by amaklakov on 02.11.2017.
  * Interface, abstracting DatagramSocket and allowing to replace implementation with some custom code
  */
-public interface UDPSocket {
+public interface UDPSocket{
 
     /**
      * Local port to which this socket is bind
@@ -19,7 +19,7 @@ public interface UDPSocket {
     /**
      * Sends containment of {@link DatagramPacket}. Throws {@link IOException} in bad cases
      */
-    void send(DatagramPacket packet) throws IOException ;
+    void send(DatagramPacket packet) throws IOException;
 
     /**
      * Blocks until the next datagram is received.
@@ -55,13 +55,9 @@ public interface UDPSocket {
      * <p> Some operating systems may require that the Java virtual machine be
      * started with implementation specific privileges to enable this option or
      * send broadcast datagrams.
-     *
-     * @param  enabled
-     *         whether or not to have broadcast turned on.
-     *
-     * @throws  SocketException
-     *          if there is an error in the underlying protocol, such as an UDP
-     *          error.
+     * @param enabled whether or not to have broadcast turned on.
+     * @throws SocketException if there is an error in the underlying protocol, such as an UDP
+     * error.
      */
     void setBroadcast(boolean enabled) throws SocketException;
 }

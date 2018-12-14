@@ -1,6 +1,6 @@
 package ru.maklas.mnet2;
 
-public interface Supplier<T> {
+public interface Supplier<T>{
 
     T get();
 

@@ -1,16 +1,15 @@
 package ru.maklas.mnet2;
 
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.AtomicQueue;
-import com.badlogic.gdx.utils.ObjectMap;
-import ru.maklas.mnet2.serialization.Serializer;
+import ru.maklas.mnet2.collection.AtomicQueue;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.PortUnreachableException;
 import java.net.SocketException;
+import java.util.ArrayList;
 import java.util.ConcurrentModificationException;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static ru.maklas.mnet2.PacketType.*;
@@ -21,45 +20,42 @@ public class SocketImpl implements Socket{
      * Size of receiving packet queue. If it overflows, data might be lost.
      */
     public static int receivingQueueSize = 5000;
-
-    //Main useful stuff
-    private final UDPSocket udp;
-    private volatile SocketState state;
-    private boolean isClientSocket;
-    private volatile int lastInsertedSeq = -1;
-    volatile long lastTimeReceivedMsg;
-    private final AtomicInteger seq = new AtomicInteger();
-    private Serializer serializer;
-    private FastPool<ResendPacket> sendPacketPool = new FastPool<ResendPacket>() {
-        @Override
-        protected ResendPacket newObject() {
-            return new ResendPacket();
-        }
-    };
-    //Отправленные надёжные пакеты, требущие подтверждения или пересылаются.
-    private final SortedIntList<ResendPacket> requestList = new SortedIntList<ResendPacket>();
     //Очередь с принятными отсортированными сообщениями.
     //byte[] - Пакет, String - Сообщение дисконнекта, Float - пинг.
     final AtomicQueue<Object> queue = new AtomicQueue<Object>(receivingQueueSize);
+    final InetAddress address;
+    final int port;
+    //Main useful stuff
+    private final UDPSocket udp;
+    private final AtomicInteger seq = new AtomicInteger();
+    //Отправленные надёжные пакеты, требущие подтверждения или пересылаются.
+    private final SortedIntList<ResendPacket> requestList = new SortedIntList<ResendPacket>();
     //Очередь в которой полученные пакеты сортируются, если они были получены в неправильной последовательности
     //byte[] - пакет или пинг если длинна == 0, byte[][] - batch пакет
     private final SortedIntList<Object> receivingSortQueue = new SortedIntList<Object>();
     //Аккумулирует bigRequest пока они не соберутся полностью.
-    private final ObjectMap<Integer, BigStorage> bigAccumulator = new ObjectMap<Integer, BigStorage>();
-    //Осуществляет контроль над частотой ресендов
-    private CongestionControl cc = new CongestionControl();
-    private volatile boolean enableCongestionControl = false;
-    private int bigSeqCounter = 1;
-
+    private final HashMap<Integer, BigStorage> bigAccumulator = new HashMap<Integer, BigStorage>();
+    volatile long lastTimeReceivedMsg;
     //Params
     volatile long resendCD = 125;
     long pingCD = 2500;
     int inactivityTimeout = 15000;
     int bufferSize = 512;
-    final InetAddress address;
-    final int port;
-
-
+    private volatile SocketState state;
+    private boolean isClientSocket;
+    private volatile int lastInsertedSeq = -1;
+    private Serializer serializer;
+    private DiscoveryHandler discoverer;
+    private FastPool<ResendPacket> sendPacketPool = new FastPool<ResendPacket>(){
+        @Override
+        protected ResendPacket newObject(){
+            return new ResendPacket();
+        }
+    };
+    //Осуществляет контроль над частотой ресендов
+    private CongestionControl cc = new CongestionControl();
+    private volatile boolean enableCongestionControl = false;
+    private int bigSeqCounter = 1;
     //datagrams
     private DatagramPacket sendPacket;
     private DatagramPacket ackPacket;
@@ -77,21 +73,21 @@ public class SocketImpl implements Socket{
 
     //Utils
     private ServerSocket server;
-    private Array<PingListener> pingListeners = new Array<PingListener>();
-    private Array<DCListener> dcListeners = new Array<DCListener>();
+    private ArrayList<PingListener> pingListeners = new ArrayList<PingListener>();
+    private ArrayList<DCListener> dcListeners = new ArrayList<DCListener>();
     private Object userData = null;
     private float currentPing;
     private long lastPingSendTime;
 
-    public SocketImpl(InetAddress address, int port, Serializer serializer) throws SocketException {
+    public SocketImpl(InetAddress address, int port, Serializer serializer) throws SocketException{
         this(address, port, 512, 7000, 2500, 100, serializer);
     }
 
-    public SocketImpl(InetAddress address, int port, int bufferSize, int inactivityTimeout, int pingFrequency, int resendFrequency, Serializer serializer) throws SocketException {
+    public SocketImpl(InetAddress address, int port, int bufferSize, int inactivityTimeout, int pingFrequency, int resendFrequency, Serializer serializer) throws SocketException{
         this(new JavaUDPSocket(), address, port, bufferSize, inactivityTimeout, pingFrequency, resendFrequency, serializer);
     }
 
-    public SocketImpl(UDPSocket udp, InetAddress address, int port, int bufferSize, int inactivityTimeout, int pingFrequency, int resendFrequency, Serializer serializer) throws SocketException {
+    public SocketImpl(UDPSocket udp, InetAddress address, int port, int bufferSize, int inactivityTimeout, int pingFrequency, int resendFrequency, Serializer serializer) throws SocketException{
         this.state = SocketState.NOT_CONNECTED;
         this.serializer = serializer;
         this.udp = udp;
@@ -109,7 +105,7 @@ public class SocketImpl implements Socket{
     /**
      * ONLY USED BY SERVERS_SOCKET to construct new SUBSOCKET
      */
-    SocketImpl(UDPSocket udp, InetAddress address, int port, int bufferSize) {
+    SocketImpl(UDPSocket udp, InetAddress address, int port, int bufferSize){
         this.state = SocketState.NOT_CONNECTED;
         this.udp = udp;
         this.address = address;
@@ -121,7 +117,7 @@ public class SocketImpl implements Socket{
     /**
      * Initialization done by server after Socket was accepted
      */
-    void init(ServerSocket serverSocket, byte[] fullResponseData, int inactivityTimeout, int pingFrequency, int resendFrequency, Serializer serializer) {
+    void init(ServerSocket serverSocket, byte[] fullResponseData, int inactivityTimeout, int pingFrequency, int resendFrequency, Serializer serializer){
         this.serializer = serializer;
         this.state = SocketState.CONNECTED;
         this.server = serverSocket;
@@ -159,15 +155,19 @@ public class SocketImpl implements Socket{
         this.pingResponsePacket.setPort(port);
     }
 
+    public void setDiscoverer(DiscoveryHandler discoverer){
+        this.discoverer = discoverer;
+    }
+
     @Override
-    public void connectAsync(final Object request, final int timeout, final ServerResponseHandler handler) {
-        new Thread(new Runnable() {
+    public void connectAsync(final Object request, final int timeout, final ServerResponseHandler handler){
+        new Thread(new Runnable(){
             @Override
-            public void run() {
-                try {
+            public void run(){
+                try{
                     ServerResponse connect = connect(request, timeout);
                     handler.handle(connect);
-                } catch (IOException e) {
+                }catch(IOException e){
                     e.printStackTrace();
                     handler.handle(new ServerResponse(ResponseType.WRONG_STATE, null));
                 }
@@ -176,13 +176,13 @@ public class SocketImpl implements Socket{
     }
 
     @Override
-    public ServerResponse connect(Object data, int timeout) throws IOException {
+    public ServerResponse connect(Object data, int timeout) throws IOException{
         byte[] req = serializer.serialize(data);
         return connect(req, timeout);
     }
 
-    private ServerResponse connect(byte[] data, int timeout) throws IOException {
-        if (!isClientSocket || state != SocketState.NOT_CONNECTED)
+    private ServerResponse connect(byte[] data, int timeout) throws IOException{
+        if(!isClientSocket || state != SocketState.NOT_CONNECTED)
             return new ServerResponse(ResponseType.WRONG_STATE);
         state = SocketState.CONNECTING;
 
@@ -192,14 +192,14 @@ public class SocketImpl implements Socket{
         sendPacket.setPort(port);
         int attempts;
         int wait;
-        if (timeout < 600) {
+        if(timeout < 600){
             timeout = 1000;
         }
 
-        if (timeout < 2000){
+        if(timeout < 2000){
             wait = 333;
             attempts = timeout / wait;
-        } else {
+        }else{
             wait = 500;
             attempts = timeout / wait;
         }
@@ -211,48 +211,48 @@ public class SocketImpl implements Socket{
 
         //send until all attempts are over or we get response.
         udp.setReceiveTimeout(wait);
-        while (attempts > 0) {
-            try {
+        while(attempts > 0){
+            try{
                 udp.send(sendPacket);
                 udp.receive(receivePacket);
-            } catch (IOException e) {
-                if (udp.isClosed()) {
+            }catch(IOException e){
+                if(udp.isClosed()){
                     state = SocketState.CLOSED;
                     return new ServerResponse(ResponseType.WRONG_STATE);
-                } else if (e instanceof PortUnreachableException) {
+                }else if(e instanceof PortUnreachableException){
                     return new ServerResponse(ResponseType.NO_RESPONSE, null);
-                } else {
-                    if (attempts-- == 0) {
+                }else{
+                    if(attempts-- == 0){
                         state = SocketState.NOT_CONNECTED;
                         return new ServerResponse(ResponseType.NO_RESPONSE);
                     }
                 }
             }
             byte pType = receiveBuffer[0];
-            if (pType == connectionResponseOk || pType == connectionResponseError || System.currentTimeMillis() - startTime > timeout){
+            if(pType == connectionResponseOk || pType == connectionResponseError || System.currentTimeMillis() - startTime > timeout){
                 break;
             }
         }
 
         byte packetType = receiveBuffer[0];
 
-        if (packetType == PacketType.connectionResponseError){
+        if(packetType == PacketType.connectionResponseError){
             state = SocketState.NOT_CONNECTED;
             return new ServerResponse(ResponseType.REJECTED);
         }
-        if (packetType != PacketType.connectionResponseOk){
+        if(packetType != PacketType.connectionResponseOk){
             state = SocketState.NOT_CONNECTED;
             return new ServerResponse(ResponseType.NO_RESPONSE);
         }
 
         int len = receivePacket.getLength();
         Object responseData;
-        if (len == 5){
+        if(len == 5){
             responseData = null;
-        } else {
-            try {
+        }else{
+            try{
                 responseData = serializer.deserialize(receiveBuffer, 5, len - 5);
-            } catch (Exception e) {
+            }catch(Exception e){
                 e.printStackTrace();
                 responseData = null;
             }
@@ -271,20 +271,20 @@ public class SocketImpl implements Socket{
     //***********//
 
     public void sendUnreliable(Object o){
-        if (isConnected()) {
+        if(isConnected()){
             sendBuffer[0] = unreliable;
             int size = serializer.serialize(o, sendBuffer, 1);
             sendPacket.setLength(size + 1);
-            try {
+            try{
                 udp.send(sendPacket);
-            } catch (IOException e) {
+            }catch(IOException e){
                 e.printStackTrace();
             }
         }
     }
 
     public void send(Object o){
-        if (isConnected()) {
+        if(isConnected()){
             byte[] fullPackage = serializer.serialize(o, 5);
             int seq = this.seq.getAndIncrement();
             fullPackage[0] = reliableRequest;
@@ -297,19 +297,19 @@ public class SocketImpl implements Socket{
     public void sendBig(Object o){
         byte[] big = serializer.serialize(o);
         int id = bigSeqCounter++;
-        if (big.length < bufferSize - 5){
+        if(big.length < bufferSize - 5){
             sendSerialized(big);
-        } else {
-            if (isConnected()){
+        }else{
+            if(isConnected()){
                 int maxPerPacket = bufferSize - 9; //503
 
                 int packs = big.length / maxPerPacket;
-                if (big.length % (maxPerPacket) > 0){
+                if(big.length % (maxPerPacket) > 0){
                     packs++;
                 }
 
                 int offset = 0;
-                for (int i = 0; i < packs; i++) {
+                for(int i = 0; i < packs; i++){
                     int currentSize = Math.min(maxPerPacket, big.length - offset);
                     byte[] singlePacket = new byte[currentSize + 9];
                     singlePacket[0] = PacketType.bigRequest;
@@ -329,9 +329,9 @@ public class SocketImpl implements Socket{
 
     @Override
     public void send(NetBatch batch){
-        if (isConnected()) {
+        if(isConnected()){
             int size = batch.size();
-            switch (size) {
+            switch(size){
                 case 0:
                     return;
                 case 1:
@@ -343,11 +343,11 @@ public class SocketImpl implements Socket{
 
             ByteBatch bb = batch.convertAndGet(serializer);
             int i = 0;
-            while (i < size) {
+            while(i < size){
                 int seq = this.seq.getAndIncrement();
                 Object[] tuple = buildSafeBatch(seq, PacketType.batch, bb, i, bufferSize);
-                byte[] fullPackage = (byte[]) tuple[0];
-                i = ((Integer) tuple[1]);
+                byte[] fullPackage = (byte[])tuple[0];
+                i = ((Integer)tuple[1]);
                 saveRequest(seq, fullPackage);
                 sendData(fullPackage);
             }
@@ -355,8 +355,8 @@ public class SocketImpl implements Socket{
     }
 
     @Override
-    public void sendSerialized(byte[] data) {
-        if (isConnected()) {
+    public void sendSerialized(byte[] data){
+        if(isConnected()){
             int seq = this.seq.getAndIncrement();
             byte[] fullPackage = build5byte(reliableRequest, seq, data);
             saveRequest(seq, fullPackage);
@@ -365,22 +365,22 @@ public class SocketImpl implements Socket{
     }
 
     @Override
-    public void sendSerUnrel(byte[] data) {
-        if (isConnected()) {
+    public void sendSerUnrel(byte[] data){
+        if(isConnected()){
             sendBuffer[0] = unreliable;
             System.arraycopy(data, 0, sendBuffer, 1, data.length);
             sendPacket.setLength(data.length + 1);
-            try {
+            try{
                 udp.send(sendPacket);
-            } catch (IOException e) {
+            }catch(IOException e){
                 e.printStackTrace();
             }
         }
     }
 
     @Override
-    public void update(SocketProcessor processor) {
-        if (isConnected()) {
+    public void update(SocketProcessor processor){
+        if(isConnected()){
             processData(processor);
             checkResendAndPing();
         }
@@ -391,7 +391,7 @@ public class SocketImpl implements Socket{
     //***********//
 
     @Override
-    public boolean isClosed() {
+    public boolean isClosed(){
         return state == SocketState.CLOSED;
     }
 
@@ -404,14 +404,14 @@ public class SocketImpl implements Socket{
     public boolean close(String msg){
         SocketState state = this.state;
 
-        if (state != SocketState.CONNECTING && state != SocketState.CONNECTED) return false;
+        if(state != SocketState.CONNECTING && state != SocketState.CONNECTED) return false;
         this.state = SocketState.CLOSED;
 
         sendData(build5byte(disconnect, 0, Utils.trimDCMessage(msg, bufferSize)));
 
-        if (isClientSocket) {
+        if(isClientSocket){
             udp.close();
-        } else {
+        }else{
             server.removeMe(this);
         }
 
@@ -420,27 +420,27 @@ public class SocketImpl implements Socket{
     }
 
     @Override
-    public UDPSocket getUdp() {
+    public UDPSocket getUdp(){
         return udp;
     }
 
     @Override
-    public int getLocalPort() {
+    public int getLocalPort(){
         return udp.getLocalPort();
     }
 
     @Override
-    public SocketState getState() {
+    public SocketState getState(){
         return state;
     }
 
     @Override
-    public void stop() {
+    public void stop(){
         interrupted = true;
     }
 
     @Override
-    public boolean isProcessing() {
+    public boolean isProcessing(){
         return processing;
     }
 
@@ -451,7 +451,7 @@ public class SocketImpl implements Socket{
 
     @Override
     public void removePingListener(PingListener pl){
-        pingListeners.removeValue(pl, true);
+        pingListeners.remove(pl);
     }
 
     @Override
@@ -461,7 +461,7 @@ public class SocketImpl implements Socket{
 
     @Override
     public void removeDcListener(DCListener dl){
-        dcListeners.removeValue(dl, true);
+        dcListeners.remove(dl);
     }
 
     @Override
@@ -476,18 +476,18 @@ public class SocketImpl implements Socket{
     }
 
     @Override
-    public float getPing() {
+    public float getPing(){
         return currentPing;
     }
 
     @Override
-    public <T> T getUserData() {
-        return (T) userData;
+    public <T> T getUserData(){
+        return (T)userData;
     }
 
     @Override
-    public <T> T setUserData(Object userData) {
-        T oldData = (T) this.userData;
+    public <T> T setUserData(Object userData){
+        T oldData = (T)this.userData;
         this.userData = userData;
         return oldData;
     }
@@ -498,41 +498,41 @@ public class SocketImpl implements Socket{
     }
 
     @Override
-    public boolean isCongestionControlEnabled() {
+    public boolean isCongestionControlEnabled(){
         return enableCongestionControl;
     }
 
     @Override
-    public void setCongestionControlEnabled(boolean enabled) {
+    public void setCongestionControlEnabled(boolean enabled){
         this.enableCongestionControl = enabled;
     }
 
     @Override
-    public long getResendDelay() {
+    public long getResendDelay(){
         return resendCD;
     }
 
     @Override
-    public void setResendDelay(long delay) {
+    public void setResendDelay(long delay){
         resendCD = delay;
     }
 
-    public int getBufferSize() {
+    public int getBufferSize(){
         return bufferSize;
     }
 
     @Override
-    public InetAddress getRemoteAddress() {
+    public InetAddress getRemoteAddress(){
         return address;
     }
 
     @Override
-    public int getRemotePort() {
+    public int getRemotePort(){
         return port;
     }
 
     @Override
-    public Serializer getSerializer() {
+    public Serializer getSerializer(){
         return serializer;
     }
 
@@ -542,41 +542,38 @@ public class SocketImpl implements Socket{
 
     private void deserializeAndPut(byte[] data, int offset, int length){
         Object obj;
-        try {
+        try{
             obj = serializer.deserialize(data, offset, length);
-        } catch (Exception e) {
+        }catch(Exception e){
             e.printStackTrace();
             return;
         }
-        if (obj != null)
+        if(obj != null)
             queue.put(obj);
     }
 
-    private void launchReceiveThread() {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                byte[] receiveBuffer = SocketImpl.this.receiveBuffer;
-                DatagramPacket packet = SocketImpl.this.receivePacket;
-                UDPSocket udp = SocketImpl.this.udp;
-                boolean keepRunning = true;
-                while (keepRunning) {
-                    try {
-                        udp.receive(packet);
-                    } catch (IOException e) {
-                        keepRunning = false;
-                        if (!udp.isClosed()) {
-                            queue.put(new DisconnectionPacket(DisconnectionPacket.TIMED_OUT, DCType.TIME_OUT));
-                        }
+    private void launchReceiveThread(){
+        new Thread(() -> {
+            byte[] receiveBuffer = SocketImpl.this.receiveBuffer;
+            DatagramPacket packet = SocketImpl.this.receivePacket;
+            UDPSocket udp = SocketImpl.this.udp;
+            boolean keepRunning = true;
+            while(keepRunning){
+                try{
+                    udp.receive(packet);
+                }catch(IOException e){
+                    keepRunning = false;
+                    if(!udp.isClosed()){
+                        queue.put(new DisconnectionPacket(DisconnectionPacket.TIMED_OUT, DCType.TIME_OUT));
                     }
-
-                    int length = packet.getLength();
-                    if (length > 5) {
-                        byte type = receiveBuffer[0];
-                        receiveData(receiveBuffer, type, length);
-                    }
-
                 }
+
+                int length = packet.getLength();
+                if(length > 5){
+                    byte type = receiveBuffer[0];
+                    receiveData(receiveBuffer, type, length);
+                }
+
             }
         }).start();
     }
@@ -589,23 +586,23 @@ public class SocketImpl implements Socket{
     void receiveData(byte[] fullPacket, byte type, int length){
         lastTimeReceivedMsg = System.currentTimeMillis();
         final int seq = PacketType.extractInt(fullPacket, 1);
-        switch (type){
+        switch(type){
             case reliableRequest:
                 sendAck(seq);
                 int expectedSeq1 = lastInsertedSeq + 1;
-                if (seq == expectedSeq1){
+                if(seq == expectedSeq1){
                     lastInsertedSeq = seq;
                     deserializeAndPut(fullPacket, 5, length - 5);
                     updateReceiveOrderQueue();
-                } else if (seq > expectedSeq1){
+                }else if(seq > expectedSeq1){
                     Object obj;
-                    try {
+                    try{
                         obj = serializer.deserialize(fullPacket, 5, length - 5);
-                    } catch (Exception e) {
+                    }catch(Exception e){
                         e.printStackTrace();
                         break;
                     }
-                    if (obj != null)
+                    if(obj != null)
                         addToWaitings(seq, obj);
                 }
                 break;
@@ -618,29 +615,30 @@ public class SocketImpl implements Socket{
             case batch:
                 sendAck(seq);
                 int expectedSeq2 = lastInsertedSeq + 1;
-                if (seq < expectedSeq2){
+                if(seq < expectedSeq2){
                     break;
                 }
 
-                try {
+                try{
                     Object[] batchPackets;
-                    if (seq == expectedSeq2){
+                    if(seq == expectedSeq2){
                         lastInsertedSeq = seq;
                         batchPackets = PacketType.breakBatchDown(fullPacket, serializer);
-                        for (Object batchPacket : batchPackets) {
+                        for(Object batchPacket : batchPackets){
                             queue.put(batchPacket);
                         }
                         updateReceiveOrderQueue();
-                    } else {
+                    }else{
                         batchPackets = PacketType.breakBatchDown(fullPacket, serializer);
                         addToWaitings(seq, batchPackets);
                     }
-                } catch (Exception ignore){}
+                }catch(Exception ignore){
+                }
                 break;
             case bigRequest:
                 sendAck(seq);
                 int expectedSeqBig = lastInsertedSeq + 1;
-                if (seq >= expectedSeqBig){
+                if(seq >= expectedSeqBig){
                     toBigAccumulator(seq, fullPacket);
                 }
                 break;
@@ -650,26 +648,38 @@ public class SocketImpl implements Socket{
 
                 int expectSeq3 = this.lastInsertedSeq + 1;
 
-                if (expectSeq3 == seq){
+                if(expectSeq3 == seq){
                     lastInsertedSeq = seq;
                     updateReceiveOrderQueue();
-                } else if (seq > expectSeq3){
+                }else if(seq > expectSeq3){
                     addToWaitings(seq, new PingPacket(0));
                 }
+                break;
+            case discovery:
+                if(discoverer == null){
+                    break;
+                }
+
+                DatagramPacket packet = discoverer.writeDiscoveryData();
+                packet.setAddress(receivePacket.getAddress());
+                try{
+                    udp.send(packet);
+                }catch(IOException ignored){}
+
                 break;
             case pingResponse:
                 final long startingTime = extractLong(fullPacket, 5);
                 boolean removed = removeFromWaitingForAck(seq, lastTimeReceivedMsg);
-                if (removed){
-                    PingPacket ping = new PingPacket(((float) (System.nanoTime() - startingTime))/1000000f);
+                if(removed){
+                    PingPacket ping = new PingPacket(((float)(System.nanoTime() - startingTime)) / 1000000f);
                     queue.put(ping);
                 }
                 break;
             case connectionRequest:
-                if (!isClientSocket){
-                    try {
+                if(!isClientSocket){
+                    try{
                         udp.send(serverConnectionResponse);
-                    } catch (IOException ignore) {
+                    }catch(IOException ignore){
                         ignore.printStackTrace();
                     }
                 }
@@ -687,27 +697,27 @@ public class SocketImpl implements Socket{
         }
     }
 
-    private void toBigAccumulator(int seq, byte[] fullPacketBig) {
+    private void toBigAccumulator(int seq, byte[] fullPacketBig){
         byte[] userData = new byte[fullPacketBig.length - 9];
         System.arraycopy(fullPacketBig, 9, userData, 0, userData.length);
         int id = PacketType.extractShort(fullPacketBig, 5);
         BigStorage bs = bigAccumulator.get(id);
-        if (bs == null){
+        if(bs == null){
             bs = new BigStorage(extractShort(fullPacketBig, 7));
             bigAccumulator.put(id, bs);
         }
 
         //Если заполнили BigStorage
-        if (bs.put(seq, userData)){
+        if(bs.put(seq, userData)){
             int lastSeqOfParts = lastInsertedSeq;
             int totalByteSize = 0;
-            for (SortedIntList.Node<byte[]> part : bs.parts) {
+            for(SortedIntList.Node<byte[]> part : bs.parts){
                 totalByteSize += part.value.length;
                 lastSeqOfParts = part.index;
             }
             byte[] result = new byte[totalByteSize];
             int offset = 0;
-            for (SortedIntList.Node<byte[]> part : bs.parts) {
+            for(SortedIntList.Node<byte[]> part : bs.parts){
                 byte[] value = part.value;
 
                 System.arraycopy(value, 0, result, offset, value.length);
@@ -716,9 +726,9 @@ public class SocketImpl implements Socket{
             bigAccumulator.remove(id);
 
             Object deserialized = null;
-            try {
+            try{
                 deserialized = serializer.deserialize(result);
-            } catch (Exception e) {
+            }catch(Exception e){
                 e.printStackTrace();
             }
             //Собрали массив целиком. И из него объект, удалив BigStorage.
@@ -726,19 +736,19 @@ public class SocketImpl implements Socket{
             int expectedSeq = lastInsertedSeq + 1;
             int firstPartSeq = bs.parts.first.index;
 
-            if (firstPartSeq == expectedSeq){ //Если мы прямо сейчас ожидаем этот объект, то просто присваиваем lastInsertedSeq последним seq части и заносим объект в очередь
+            if(firstPartSeq == expectedSeq){ //Если мы прямо сейчас ожидаем этот объект, то просто присваиваем lastInsertedSeq последним seq части и заносим объект в очередь
                 lastInsertedSeq = lastSeqOfParts;
-                try {
+                try{
                     queue.put(deserialized);
-                } catch (Exception e) {
+                }catch(Exception e){
                     e.printStackTrace();
                 }
 
                 updateReceiveOrderQueue();
-            } else if (firstPartSeq > expectedSeq){ //Если же мы впереди всё ещё ждём чего-то, то добавляем объект в Waitings. Заполняя остатки seq PingPacket-ами
+            }else if(firstPartSeq > expectedSeq){ //Если же мы впереди всё ещё ждём чего-то, то добавляем объект в Waitings. Заполняя остатки seq PingPacket-ами
                 PingPacket pp = new PingPacket(0);
                 addToWaitings(firstPartSeq, deserialized != null ? deserialized : pp);
-                for (int i = 1; i < bs.parts.size; i++) {
+                for(int i = 1; i < bs.parts.size; i++){
                     addToWaitings(firstPartSeq + i, pp);
                 }
             }
@@ -748,12 +758,13 @@ public class SocketImpl implements Socket{
     /**
      * Отправляем ответ на пинг запрос. Тупо пакет с type, seq, startTime
      */
-    private void sendPingResponse(int seq, long startTime) {
+    private void sendPingResponse(int seq, long startTime){
         PacketType.putInt(pingResponseBuffer, seq, 1);
         PacketType.putLong(pingResponseBuffer, startTime, 5);
-        try {
+        try{
             udp.send(pingResponsePacket);
-        } catch (IOException e) {}
+        }catch(IOException e){
+        }
     }
 
 
@@ -762,22 +773,22 @@ public class SocketImpl implements Socket{
      * @param seq номер
      * @param userData Object - пакет, Object[] - Батч пакет, PingPacket - пинг.
      */
-    private void addToWaitings(int seq, Object userData) {
+    private void addToWaitings(int seq, Object userData){
         receivingSortQueue.insert(seq, userData);
     }
 
-    private boolean removeFromWaitingForAck(int seq, long currentTime) {
-        synchronized (requestList){
+    private boolean removeFromWaitingForAck(int seq, long currentTime){
+        synchronized(requestList){
             ResendPacket removed = requestList.remove(seq);
-            if (removed != null){
+            if(removed != null){
                 sendPacketPool.free(removed);
-                if (enableCongestionControl) {
-                    if (removed.resends == 0) {
+                if(enableCongestionControl){
+                    if(removed.resends == 0){
                         cc.noResendsDelays.add(currentTime - removed.sendTime);
-                    } else {
+                    }else{
                         cc.resendPackets++;
                     }
-                    if (cc.size() > 25) {
+                    if(cc.size() > 25){
                         resendCD = cc.calculateAdjustment(resendCD);
                         cc.clear();
                     }
@@ -789,51 +800,51 @@ public class SocketImpl implements Socket{
     }
 
     private void processData(SocketProcessor processor){
-        if (processing){
+        if(processing){
             throw new ConcurrentModificationException("Can't be processed by 2 threads at the same time");
         }
-        if (!isConnected()) return;
+        if(!isConnected()) return;
 
         processing = true;
         interrupted = false;
-        try {
+        try{
 
             Object poll = queue.poll();
-            while (poll != null){
+            while(poll != null){
 
-                if (poll instanceof PingPacket){
-                    currentPing = ((PingPacket) poll).newPing;
-                    for (PingListener pingListener : pingListeners) {
+                if(poll instanceof PingPacket){
+                    currentPing = ((PingPacket)poll).newPing;
+                    for(PingListener pingListener : pingListeners){
                         pingListener.pingChanged(this, currentPing);
                     }
-                } else if (poll instanceof DisconnectionPacket){
+                }else if(poll instanceof DisconnectionPacket){
                     interrupted = true;
                     state = SocketState.CLOSED;
-                    DisconnectionPacket dcPacket = (DisconnectionPacket) poll;
+                    DisconnectionPacket dcPacket = (DisconnectionPacket)poll;
 
-                    if (dcPacket.type == DisconnectionPacket.TIMED_OUT){
+                    if(dcPacket.type == DisconnectionPacket.TIMED_OUT){
                         byte[] bytes = build5byte(disconnect, 0, Utils.trimDCMessage(dcPacket.message, bufferSize));
                         sendData(bytes);
                     }
 
-                    if (isClientSocket){
+                    if(isClientSocket){
                         udp.close();
-                    } else {
+                    }else{
                         server.removeMe(this);
                     }
 
                     notifyDcListenersAndRemoveAll(dcPacket.message);
                     break;
-                } else {
+                }else{
                     processor.process(this, poll);
                 }
-                if (interrupted){
+                if(interrupted){
                     break;
                 }
                 poll = queue.poll();
             }
 
-        } catch (Throwable t){
+        }catch(Throwable t){
             t.printStackTrace();
         }
         processing = false;
@@ -843,32 +854,32 @@ public class SocketImpl implements Socket{
     void sendAck(int seq){
         ackBuffer[0] = reliableAck;
         PacketType.putInt(ackBuffer, seq, 1);
-        try {
+        try{
             udp.send(ackPacket);
-        } catch (IOException e) {
+        }catch(IOException e){
             e.printStackTrace();
         }
     }
 
     void notifyDcListenersAndRemoveAll(String msg){
-        for (DCListener dcListener : dcListeners) {
+        for(DCListener dcListener : dcListeners){
             dcListener.socketClosed(this, msg);
         }
         dcListeners.clear();
         pingListeners.clear();
     }
 
-    void checkResendAndPing() {
+    void checkResendAndPing(){
         final long currTime = System.currentTimeMillis();
-        if (currTime - lastPingSendTime > pingCD){
+        if(currTime - lastPingSendTime > pingCD){
             sendPing();
             lastPingSendTime = currTime;
         }
         long resendCD = this.resendCD;
-        synchronized (requestList) {
-            for (SortedIntList.Node<ResendPacket> pack : requestList) {
+        synchronized(requestList){
+            for(SortedIntList.Node<ResendPacket> pack : requestList){
                 ResendPacket packet = pack.value;
-                if (currTime - packet.sendTime > resendCD){
+                if(currTime - packet.sendTime > resendCD){
                     sendData(packet.data);
                     packet.sendTime = currTime;
                     packet.resends++;
@@ -877,8 +888,8 @@ public class SocketImpl implements Socket{
         }
     }
 
-    private void saveRequest(int seq, byte[] fullPackage) {
-        synchronized (requestList) {
+    private void saveRequest(int seq, byte[] fullPackage){
+        synchronized(requestList){
             requestList.insert(seq, sendPacketPool.obtain().set(fullPackage));
         }
     }
@@ -886,22 +897,22 @@ public class SocketImpl implements Socket{
     /**
      * Проверить объекты которые ждут свою очередь
      */
-    private void updateReceiveOrderQueue() {
+    private void updateReceiveOrderQueue(){
         int expectedSeq;
 
         SortedIntList<Object> queue = this.receivingSortQueue;
         expectedSeq = lastInsertedSeq + 1;
         Object mayBeData = queue.remove(expectedSeq);
 
-        while (mayBeData != null) {
+        while(mayBeData != null){
             this.lastInsertedSeq = expectedSeq;
-            if (mayBeData instanceof PingPacket) {
+            if(mayBeData instanceof PingPacket){
 
-            } else if (mayBeData instanceof Object[]){
-                for (Object packet : ((Object[]) mayBeData)) {
+            }else if(mayBeData instanceof Object[]){
+                for(Object packet : ((Object[])mayBeData)){
                     this.queue.put(packet);
                 }
-            } else {
+            }else{
                 this.queue.put(mayBeData);
             }
             expectedSeq = lastInsertedSeq + 1;
@@ -909,17 +920,17 @@ public class SocketImpl implements Socket{
         }
     }
 
-    void sendData(byte[] fullPackage) {
+    void sendData(byte[] fullPackage){
         System.arraycopy(fullPackage, 0, sendBuffer, 0, fullPackage.length);
-        try {
+        try{
             sendPacket.setLength(fullPackage.length);
             udp.send(sendPacket);
-        } catch (Exception e) {
+        }catch(Exception e){
             e.printStackTrace();
         }
     }
 
-    private void sendPing() {
+    private void sendPing(){
         int seq = this.seq.getAndIncrement();
         byte[] fullPackage = new byte[13];
         fullPackage[0] = pingRequest;
@@ -930,18 +941,41 @@ public class SocketImpl implements Socket{
     }
 
     @Override
-    public String toString() {
+    public String toString(){
         return "{" +
-                "state=" + state +
-                ", ping=" + currentPing +
-                ", address=" + address +
-                ", port=" + port +
-                ", processing=" + processing +
-                ", userData=" + userData +
-                '}';
+        "state=" + state +
+        ", ping=" + currentPing +
+        ", address=" + address +
+        ", port=" + port +
+        ", processing=" + processing +
+        ", userData=" + userData +
+        '}';
     }
 
-    private class ResendPacket {
+    static class DisconnectionPacket{
+
+        public static final int SELF_CLOSED = 1;
+        public static final int EVENT_RECEIVED = 2;
+        public static final int TIMED_OUT = 3;
+
+        public int type;
+        public String message;
+
+        public DisconnectionPacket(int type, String message){
+            this.type = type;
+            this.message = message;
+        }
+    }
+
+    private static class PingPacket{
+        float newPing;
+
+        public PingPacket(float newPing){
+            this.newPing = newPing;
+        }
+    }
+
+    private class ResendPacket{
         public long sendTime;
         public int resends;
         public byte[] data;
@@ -951,29 +985,6 @@ public class SocketImpl implements Socket{
             this.data = data;
             this.resends = 0;
             return this;
-        }
-    }
-
-    static class DisconnectionPacket {
-
-        public static final int SELF_CLOSED = 1;
-        public static final int EVENT_RECEIVED = 2;
-        public static final int TIMED_OUT = 3;
-
-        public int type;
-        public String message;
-
-        public DisconnectionPacket(int type, String message) {
-            this.type = type;
-            this.message = message;
-        }
-    }
-
-    private static class PingPacket {
-        float newPing;
-
-        public PingPacket(float newPing) {
-            this.newPing = newPing;
         }
     }
 }

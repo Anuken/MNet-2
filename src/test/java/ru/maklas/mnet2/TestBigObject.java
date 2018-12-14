@@ -12,15 +12,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-public class TestBigObject implements ServerAuthenticator {
+public class TestBigObject implements ServerAuthenticator{
 
     public final int port = 9006;
 
     public AtomicInteger stringSize = new AtomicInteger();
 
     @Test
-    public void testBig() throws Exception {
-        TestUtils.serializerSupplier = new MySerializer(10 * 1024 * 1024);
+    public void testBig() throws Exception{
+        TestUtils.serializerSupplier = MySerializer::new;
 
         ServerSocket serverSocket = TestUtils.newServerSocket(TestUtils.udp(port, 200, 40), this);
         TestUtils.startUpdating(serverSocket, 16);
@@ -33,23 +33,20 @@ public class TestBigObject implements ServerAuthenticator {
 
         assertEquals(ResponseType.ACCEPTED, response.getType());
         assertNotNull(response.getResponse());
-        assertEquals("Welcome, maklas!", ((ConnectionResponse) response.getResponse()).getWelcome());
+        assertEquals("Welcome, maklas!", ((ConnectionResponse)response.getResponse()).getWelcome());
 
         final AtomicInteger biggestString = new AtomicInteger(0);
         final AtomicInteger counter = new AtomicInteger(0);
-        for (int i = 0; i < 200; i++) {
-            client.update(new SocketProcessor() {
-                @Override
-                public void process(Socket sock, Object o) {
-                    UpdateObject uo = (UpdateObject) o;
-                    if (uo.getId().length() < 5000){
-                        Log.trace("Client received " + (counter.getAndIncrement()) + ":  " + o);
-                    } else {
-                        Log.trace("Client received " + (counter.getAndIncrement()) + ": too big of an object to print");
-                    }
-                    if (biggestString.get() < uo.getId().length()){
-                        biggestString.set(uo.getId().length());
-                    }
+        for(int i = 0; i < 200; i++){
+            client.update((sock, o) -> {
+                UpdateObject uo = (UpdateObject)o;
+                if(uo.getId().length() < 5000){
+                    Log.trace("Client received " + (counter.getAndIncrement()) + ":  " + o);
+                }else{
+                    Log.trace("Client received " + (counter.getAndIncrement()) + ": too big of an object to print");
+                }
+                if(biggestString.get() < uo.getId().length()){
+                    biggestString.set(uo.getId().length());
                 }
             });
             Thread.sleep(50);
@@ -59,7 +56,7 @@ public class TestBigObject implements ServerAuthenticator {
         assertEquals(11, counter.get());
         assertEquals(stringSize.get(), biggestString.get());
 
-        if (client.isConnected()){
+        if(client.isConnected()){
             client.close();
         }
 
@@ -69,16 +66,16 @@ public class TestBigObject implements ServerAuthenticator {
 
 
     @Override
-    public void acceptConnection(Connection conn) {
+    public void acceptConnection(Connection conn){
         System.out.println("Received connection request: " + conn);
 
-        if ((conn.getRequest() instanceof ConnectionRequest)
-                && "123".equals(((ConnectionRequest) conn.getRequest()).getPassword())){
-            ConnectionResponse response = new ConnectionResponse("Welcome, " + ((ConnectionRequest) conn.getRequest()).getName() + "!");
+        if((conn.getRequest() instanceof ConnectionRequest)
+        && "123".equals(((ConnectionRequest)conn.getRequest()).getPassword())){
+            ConnectionResponse response = new ConnectionResponse("Welcome, " + ((ConnectionRequest)conn.getRequest()).getName() + "!");
             System.out.println("Responding with " + response);
             Socket socket = conn.accept(response);
 
-            for (int i = 0; i < 1; i++) {
+            for(int i = 0; i < 1; i++){
                 socket.sendBig(new UpdateObject("Very fucking Small Random String", 100, 200, (i * 2) + 1));
                 socket.sendBig(new UpdateObject("Very fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small randrandrandra Random ", 100, 200, i * 2));
                 socket.sendBig(new UpdateObject("Very fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small Random StringVery fucking Small randrandrandra Random 1", 100, 200, i * 2));
@@ -92,8 +89,8 @@ public class TestBigObject implements ServerAuthenticator {
             }
 
             StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < 1024; i++) {
-                for (int j = 0; j < 400; j++) {
+            for(int i = 0; i < 1024; i++){
+                for(int j = 0; j < 400; j++){
                     sb.append("abcde ");
                 }
                 sb.append('\n');

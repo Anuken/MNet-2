@@ -8,6 +8,11 @@ public class Response{
     final boolean accept;
     Object responseData;
 
+    private Response(boolean accept, Object responseData){
+        this.accept = accept;
+        this.responseData = responseData;
+    }
+
     /**
      * Respond with success flag
      * @param data Your response data
@@ -24,20 +29,15 @@ public class Response{
         return new Response(false, data);
     }
 
-    private Response(boolean accept, Object responseData) {
-        this.accept = accept;
-        this.responseData = responseData;
-    }
-
-    public boolean accepted() {
+    public boolean accepted(){
         return accept;
     }
 
-    public Object getResponseData() {
+    public Object getResponseData(){
         return responseData;
     }
 
-    public void setResponseData(Object responseData) {
+    public void setResponseData(Object responseData){
         this.responseData = responseData;
     }
 }

@@ -1,18 +1,15 @@
 package ru.maklas.mnet2;
 
-import ru.maklas.mnet2.serialization.Serializer;
-
 import java.io.IOException;
 import java.net.InetAddress;
 
-public interface Socket {
+public interface Socket{
 
     /**
      * <p>Tries to establish connection to the server with custom user request.
      * Blocks thread for specified time until connected/rejected/timeout</p>
-     *
      * @param request Custom data (request data). Can be anything. For example login + password for validation.
-     *                Serialized maximum size is bufferSize - 1
+     * Serialized maximum size is bufferSize - 1
      * @param timeout Blocking time in milliseconds
      * @return Connection response containing connection {@link ServerResponse result} and response data
      * @throws RuntimeException If this socket was created by server. Changing sub-server socket connections is forbidden
@@ -29,7 +26,6 @@ public interface Socket {
      * <p>This method provides reliable, and ordered Object sending. Objects will be delivered in the order of sending.
      * Objects will be resent over and over until socket on the other end received it or disconnection occurs
      * </p>
-     *
      * @param o Object to be send. Max serialized size == bufferSize - 5. Object can be changed after calling this method
      */
     void send(Object o);
@@ -40,7 +36,6 @@ public interface Socket {
      * <p>This method provides reliable, and ordered Object sending. Objects will be delivered in the order of sending.
      * Objects will be resent over and over until socket on the other end received it or disconnection occurs
      * </p>
-     *
      * @param o Object to be send. Max serialized size == (bufferSize - 9) * 2^16. Object can be changed after calling this method
      */
     void sendBig(Object o);
@@ -50,7 +45,6 @@ public interface Socket {
      * <p>This method sends data immediately to a socket on the other end and <b>does not provide reliability nor ordering</b>.
      * this method uses plain UDP, so Object might not be delivered or delivered in wrong order.
      * </p>
-     *
      * @param o Object to be send. Max serialized size == bufferSize - 1. Data will be copied, so can be changed after method returns
      */
     void sendUnreliable(Object o);
@@ -65,7 +59,6 @@ public interface Socket {
      * <p>This method provides reliable, and ordered Object sending. Batches and Objects inside of the batch will be delivered in the order of sending.
      * Objects will be resent over and over until socket on the other end received it or disconnection occurs
      * </p>
-     *
      * @param batch Batch to be send.
      */
     void send(NetBatch batch);
@@ -77,10 +70,9 @@ public interface Socket {
      * Works better if you implement this method by one of your classes and pass the same instance every time, rather than instantiating
      * </p>
      * <p>If socket on the other end disconnects, this method might receive this Disconnection event and will trigger listeners.</p>
-     *
      * @param processor Instance that is going to receive all pending Objects in the order which they were sent.
-     *                  Unreliable packets will also be consumed by this SocketProcessor. Receiving of the packets
-     *                  can be temporarily stopped with {@link #stop()}
+     * Unreliable packets will also be consumed by this SocketProcessor. Receiving of the packets
+     * can be temporarily stopped with {@link #stop()}
      */
     void update(SocketProcessor processor);
 
@@ -144,7 +136,6 @@ public interface Socket {
      * Store your custom data in socket
      * Useful when you use single instance of SocketProcessor for processing multiple sockets.
      * Use {@link #getUserData()} to retrieve userData
-     *
      * @param userData Any object
      * @return userData object that was replaced (null for the 1st time)
      */

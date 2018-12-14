@@ -10,62 +10,61 @@ import java.net.SocketException;
  * Created by amaklakov on 02.11.2017.
  * Java DatagramSocket implementation
  */
-public class JavaUDPSocket implements UDPSocket {
+public class JavaUDPSocket implements UDPSocket{
 
     private final DatagramSocket socket;
 
-    public JavaUDPSocket() throws SocketException {
+    public JavaUDPSocket() throws SocketException{
         this(new DatagramSocket());
     }
 
-    public JavaUDPSocket(int port) throws SocketException {
+    public JavaUDPSocket(int port) throws SocketException{
         this(new DatagramSocket(port));
     }
 
-    public JavaUDPSocket(DatagramSocket dSocket) {
+    public JavaUDPSocket(DatagramSocket dSocket){
         this.socket = dSocket;
     }
 
 
-
     @Override
-    public int getLocalPort() {
+    public int getLocalPort(){
         return socket.getLocalPort();
     }
 
     @Override
-    public void send(DatagramPacket packet) throws IOException {
+    public void send(DatagramPacket packet) throws IOException{
         socket.send(packet);
     }
 
     @Override
-    public void receive(DatagramPacket packet) throws IOException {
+    public void receive(DatagramPacket packet) throws IOException{
         socket.receive(packet);
     }
 
     @Override
-    public void setReceiveTimeout(int millis) throws SocketException {
+    public void setReceiveTimeout(int millis) throws SocketException{
         socket.setSoTimeout(millis);
     }
 
     @Override
-    public void close() {
+    public void close(){
         socket.close();
     }
 
     @Override
-    public boolean isClosed() {
+    public boolean isClosed(){
         return socket.isClosed();
     }
 
     @Override
-    public void connect(InetAddress address, int port) {
-        if (!socket.isConnected())
+    public void connect(InetAddress address, int port){
+        if(!socket.isConnected())
             socket.connect(address, port);
     }
 
     @Override
-    public void setBroadcast(boolean enabled) throws SocketException {
+    public void setBroadcast(boolean enabled) throws SocketException{
         socket.setBroadcast(enabled);
     }
 }

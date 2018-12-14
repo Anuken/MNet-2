@@ -1,6 +1,6 @@
 package ru.maklas.mnet2;
 
-import com.badlogic.gdx.utils.AtomicQueue;
+import ru.maklas.mnet2.collection.AtomicQueue;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -22,12 +22,11 @@ public class HighPingUDPSocket implements UDPSocket, Runnable{
     private final Thread sendT;
     private final Thread recT;
 
-
-    public HighPingUDPSocket(UDPSocket delegate, int additionalPing) {
+    public HighPingUDPSocket(UDPSocket delegate, int additionalPing){
         this(delegate, additionalPing / 2, additionalPing / 2);
     }
 
-    public HighPingUDPSocket(UDPSocket delegate, int sendingPing, int receivingPing) {
+    public HighPingUDPSocket(UDPSocket delegate, int sendingPing, int receivingPing){
         this.delegate = delegate;
         this.sendingPing = sendingPing;
         this.receivingPing = receivingPing;
@@ -41,12 +40,12 @@ public class HighPingUDPSocket implements UDPSocket, Runnable{
     }
 
     @Override
-    public int getLocalPort() {
+    public int getLocalPort(){
         return delegate.getLocalPort();
     }
 
     @Override
-    public void send(final DatagramPacket packet) throws IOException {
+    public void send(final DatagramPacket packet) throws IOException{
         final InetAddress address = packet.getAddress();
         final int port = packet.getPort();
         final byte[] packetBuffer = packet.getData();
@@ -57,28 +56,28 @@ public class HighPingUDPSocket implements UDPSocket, Runnable{
     }
 
     @Override
-    public void receive(DatagramPacket packet) throws IOException {
-        try {
+    public void receive(DatagramPacket packet) throws IOException{
+        try{
             final DataTriplet take = receiver.take();
             packet.setAddress(take.address);
             packet.setPort(take.port);
             System.arraycopy(take.data, 0, packet.getData(), packet.getOffset(), take.data.length);
             packet.setLength(take.data.length);
             long currentTime = System.currentTimeMillis();
-            while (currentTime - take.creationTime < receivingPing){
+            while(currentTime - take.creationTime < receivingPing){
                 Thread.sleep(1);
                 currentTime = System.currentTimeMillis();
             }
-        } catch (InterruptedException e) {
+        }catch(InterruptedException e){
             e.printStackTrace();
         }
     }
 
     @Override
-    public void run() {
+    public void run(){
 
-        try {
-            while (true) {
+        try{
+            while(true){
                 delegate.receive(receivingPacket);
                 final InetAddress address = receivingPacket.getAddress();
                 final int port = receivingPacket.getPort();
@@ -88,28 +87,43 @@ public class HighPingUDPSocket implements UDPSocket, Runnable{
                 receiver.offer(triplet);
             }
 
-        } catch (IOException e) {
+        }catch(IOException e){
             e.printStackTrace();
         }
     }
 
     @Override
-    public void close() {
+    public void close(){
         delegate.close();
-        try {
+        try{
             sendT.interrupt();
             recT.interrupt();
-        } catch (Exception e) {
+        }catch(Exception e){
             e.printStackTrace();
         }
     }
 
     @Override
-    public void setReceiveTimeout(int millis) throws SocketException {
+    public void setReceiveTimeout(int millis) throws SocketException{
         delegate.setReceiveTimeout(millis);
     }
 
-    private class DataTriplet {
+    @Override
+    public boolean isClosed(){
+        return delegate.isClosed();
+    }
+
+    @Override
+    public void connect(InetAddress address, int port){
+        delegate.connect(address, port);
+    }
+
+    @Override
+    public void setBroadcast(boolean enabled) throws SocketException{
+        delegate.setBroadcast(enabled);
+    }
+
+    private class DataTriplet{
 
 
         private final InetAddress address;
@@ -117,7 +131,7 @@ public class HighPingUDPSocket implements UDPSocket, Runnable{
         private final byte[] data;
         private final long creationTime;
 
-        public DataTriplet(InetAddress address, int port, byte[] data) {
+        public DataTriplet(InetAddress address, int port, byte[] data){
             this.creationTime = System.currentTimeMillis();
             this.address = address;
             this.port = port;
@@ -125,40 +139,25 @@ public class HighPingUDPSocket implements UDPSocket, Runnable{
         }
     }
 
-    @Override
-    public boolean isClosed() {
-        return delegate.isClosed();
-    }
-
-    @Override
-    public void connect(InetAddress address, int port) {
-        delegate.connect(address, port);
-    }
-
-    @Override
-    public void setBroadcast(boolean enabled) throws SocketException {
-        delegate.setBroadcast(enabled);
-    }
-
-    private class Sender implements Runnable {
+    private class Sender implements Runnable{
 
 
         private final AtomicQueue<DataTriplet> sendingQueue = new AtomicQueue<DataTriplet>(15000);
 
         @Override
-        public void run() {
+        public void run(){
             AtomicQueue<DataTriplet> sendingQueue = this.sendingQueue;
             final DatagramPacket sendingPacket = new DatagramPacket(new byte[1400], 1400);
 
-            try {
-                while (!Thread.interrupted()){
+            try{
+                while(!Thread.interrupted()){
 
                     DataTriplet poll = sendingQueue.poll();
 
-                    while (poll != null){
+                    while(poll != null){
                         long creationTime = poll.creationTime;
                         long l = System.currentTimeMillis();
-                        while (l - creationTime < sendingPing){
+                        while(l - creationTime < sendingPing){
                             Thread.sleep(1);
                             l = System.currentTimeMillis();
                         }
@@ -168,9 +167,8 @@ public class HighPingUDPSocket implements UDPSocket, Runnable{
 
                     Thread.sleep(1);
                 }
-            } catch (Exception e) {
+            }catch(Exception e){
                 e.printStackTrace();
-                return;
             }
         }
 
@@ -179,7 +177,7 @@ public class HighPingUDPSocket implements UDPSocket, Runnable{
             sendingQueue.put(triplet);
         }
 
-        private void send(DataTriplet triplet, DatagramPacket packet) throws Exception {
+        private void send(DataTriplet triplet, DatagramPacket packet) throws Exception{
             packet.setAddress(triplet.address);
             packet.setPort(triplet.port);
             System.arraycopy(triplet.data, 0, packet.getData(), packet.getOffset(), triplet.data.length);

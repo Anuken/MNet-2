@@ -4,23 +4,23 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 
-public class Connection {
+public class Connection{
 
+    private final ServerSocket serverSocket;
+    SocketImpl socket;
     private Object request;
     private Object response;
-    SocketImpl socket;
-    private final ServerSocket serverSocket;
     private boolean accepted;
     private boolean rejected;
 
 
-    public Connection(ServerSocket serverSocket, SocketImpl socket, Object request) {
+    public Connection(ServerSocket serverSocket, SocketImpl socket, Object request){
         this.serverSocket = serverSocket;
         this.socket = socket;
         this.request = request;
     }
 
-    public Object getRequest() {
+    public Object getRequest(){
         return request;
     }
 
@@ -37,17 +37,17 @@ public class Connection {
     }
 
     public Socket accept(Object response){
-        if (isMadeChoice()) throw new RuntimeException("You've already accepter or rejected connection");
+        if(isMadeChoice()) throw new RuntimeException("You've already accepter or rejected connection");
         accepted = true;
         this.response = response;
 
         byte[] fullResponsePacket = buildFullResponsePacket(response, true);
         socket.init(serverSocket,
-                fullResponsePacket,
-                serverSocket.inactivityTimeout,
-                serverSocket.pingFrequency,
-                serverSocket.resendFrequency,
-                serverSocket.serializerSupplier.get());
+        fullResponsePacket,
+        serverSocket.inactivityTimeout,
+        serverSocket.pingFrequency,
+        serverSocket.resendFrequency,
+        serverSocket.serializerSupplier.get());
         serverSocket.socketMap.put(socket);
 
         send(fullResponsePacket);
@@ -55,33 +55,33 @@ public class Connection {
     }
 
     public void reject(Object response){
-        if (isMadeChoice()) throw new RuntimeException("You've already accepter or rejected connection");
+        if(isMadeChoice()) throw new RuntimeException("You've already accepter or rejected connection");
         rejected = true;
         this.response = response;
 
         byte[] fullResponsePacket = buildFullResponsePacket(response, false);
         socket.init(serverSocket,
-                fullResponsePacket,
-                serverSocket.inactivityTimeout,
-                serverSocket.pingFrequency,
-                serverSocket.resendFrequency,
-                serverSocket.serializerSupplier.get());
+        fullResponsePacket,
+        serverSocket.inactivityTimeout,
+        serverSocket.pingFrequency,
+        serverSocket.resendFrequency,
+        serverSocket.serializerSupplier.get());
         serverSocket.socketMap.put(socket);
 
         send(fullResponsePacket);
     }
+
     /**
      * builds fullResponse for Response<> object
      */
-    byte[] buildFullResponsePacket(Object response, boolean accepted) {
+    byte[] buildFullResponsePacket(Object response, boolean accepted){
         byte[] userResponse;
-        if (response == null) {
+        if(response == null){
             userResponse = new byte[0];
-        }
-        else {
-            try {
+        }else{
+            try{
                 userResponse = serverSocket.serializer.serialize(response);
-            } catch (Exception e) {
+            }catch(Exception e){
                 e.printStackTrace();
                 userResponse = new byte[0];
             }
@@ -97,20 +97,20 @@ public class Connection {
         sendPacket.setAddress(socket.address);
         sendPacket.setPort(socket.port);
         sendPacket.setData(data);
-        try {
+        try{
             serverSocket.udp.send(sendPacket);
-        } catch (IOException e) {
+        }catch(IOException e){
             e.printStackTrace();
         }
     }
 
     @Override
-    public String toString() {
+    public String toString(){
         return "{" +
-                "request=" + request +
-                ", accepted=" + accepted +
-                ", rejected=" + rejected +
-                ", socket=" + socket +
-                '}';
+        "request=" + request +
+        ", accepted=" + accepted +
+        ", rejected=" + rejected +
+        ", socket=" + socket +
+        '}';
     }
 }

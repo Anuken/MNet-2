@@ -1,7 +1,7 @@
 package ru.maklas.mnet2;
 
 
-public interface SocketProcessor {
+public interface SocketProcessor{
 
     /**
      * Receives next object from connected socket. Acts like iterator (socket.forEachNextPacket( (data) -> {}))

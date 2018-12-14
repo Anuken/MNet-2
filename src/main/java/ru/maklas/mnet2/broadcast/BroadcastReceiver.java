@@ -1,6 +1,6 @@
-package ru.maklas.mnet2;
+package ru.maklas.mnet2.broadcast;
 
-public interface BroadcastReceiver {
+public interface BroadcastReceiver{
 
     /**
      * Called when someone responded for discovery message

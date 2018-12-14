@@ -1,6 +1,6 @@
-package ru.maklas.mnet2.serialization;
+package ru.maklas.mnet2;
 
-public interface Serializer {
+public interface Serializer{
 
     /**
      * Serializes object into byte array.

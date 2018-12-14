@@ -1,16 +1,18 @@
-package ru.maklas.mnet2;
+package ru.maklas.mnet2.broadcast;
 
-import com.badlogic.gdx.utils.Array;
-import ru.maklas.mnet2.serialization.Serializer;
+import ru.maklas.mnet2.JavaUDPSocket;
+import ru.maklas.mnet2.Serializer;
+import ru.maklas.mnet2.UDPSocket;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class BroadcastSocket {
+public class BroadcastSocket{
 
     private final UDPSocket udp;
     private final DatagramPacket sendingPacket;
@@ -30,22 +32,21 @@ public class BroadcastSocket {
      * @param port {@link BroadcastServlet} must use the same port to communicate
      * @param bufferSize max byte[] size that is possible to send over UDP. Recommended to use 512
      * @param uuid Unique id for application or application version. So that no other apps that use this library could see your request.
-     *             {@link BroadcastServlet} must have the same UUID in oder to receive your requests!
+     * {@link BroadcastServlet} must have the same UUID in oder to receive your requests!
      */
-    public BroadcastSocket(int port, int bufferSize, String uuid, Serializer serializer) throws SocketException, UnknownHostException {
+    public BroadcastSocket(int port, int bufferSize, String uuid, Serializer serializer) throws SocketException, UnknownHostException{
         this(new JavaUDPSocket(), "255.255.255.255", port, bufferSize, uuid.getBytes(), serializer);
     }
 
     /**
-     *
      * @param socket Use {@link JavaUDPSocket} for actual connection
      * @param address target broadcast address. Use default 255.255.255.255 if you don't know what to put in here.
      * @param port {@link BroadcastServlet} must use the same port to communicate
      * @param bufferSize max byte[] size that is possible to send over UDP. Recommended to use 512
      * @param uuid Unique id for application or application version. So that no other apps that use this library could see your request.
-     *             {@link BroadcastServlet} must have the same UUID in oder to receive your requests!
+     * {@link BroadcastServlet} must have the same UUID in oder to receive your requests!
      */
-    public BroadcastSocket(UDPSocket socket, String address, int port, int bufferSize, byte[] uuid, Serializer serializer) throws UnknownHostException, SocketException {
+    public BroadcastSocket(UDPSocket socket, String address, int port, int bufferSize, byte[] uuid, Serializer serializer) throws UnknownHostException, SocketException{
         this.udp = socket;
         this.address = InetAddress.getByName(address);
         this.port = port;
@@ -57,9 +58,9 @@ public class BroadcastSocket {
         this.monitor = new Object();
 
         socket.setBroadcast(true);
-        new Thread(new Runnable() {
+        new Thread(new Runnable(){
             @Override
-            public void run() {
+            public void run(){
                 BroadcastSocket.this.run();
             }
         }).start();
@@ -79,8 +80,8 @@ public class BroadcastSocket {
      * @return true if search was actually interrupted.
      */
     public boolean interrupt(){
-        synchronized (monitor){
-            if (receiver != null){
+        synchronized(monitor){
+            if(receiver != null){
                 receiver.receiver.finished(true);
                 searchingThread.interrupt();
                 searchingThread = null;
@@ -95,30 +96,30 @@ public class BroadcastSocket {
      * Starts async search. Don't forget to synchronzie anything you get onto BroadcastReceiver!
      */
     public boolean search(Object data, final int timeMillis, final int resends, final BroadcastReceiver receiver){
-        synchronized (monitor){
-            if (this.receiver != null) return false;
+        synchronized(monitor){
+            if(this.receiver != null) return false;
             final byte[] serialized = serializer.serialize(data);
             final int seq = currentSeq = seqCounter.getAndIncrement();
             final byte[] fullPackage = LocatorUtils.createRequest(uuid, seq, serialized);
 
             this.receiver = new ReceiverBuffer(receiver);
-            searchingThread = new Thread(new Runnable() {
+            searchingThread = new Thread(new Runnable(){
                 @Override
-                public void run() {
+                public void run(){
                     final int resendCD = timeMillis / resends;
 
-                    for (int i = 0; i < resends; i++) {
+                    for(int i = 0; i < resends; i++){
                         sendData(fullPackage);
-                        try {
+                        try{
                             Thread.sleep(resendCD);
-                        } catch (InterruptedException e) {
+                        }catch(InterruptedException e){
                             return;
                         }
                     }
 
-                    synchronized (monitor){
+                    synchronized(monitor){
                         ReceiverBuffer receiverBuffer = BroadcastSocket.this.receiver;
-                        if (receiverBuffer != null){
+                        if(receiverBuffer != null){
                             receiverBuffer.receiver.finished(false);
                             BroadcastSocket.this.receiver = null;
                             BroadcastSocket.this.searchingThread = null;
@@ -134,47 +135,47 @@ public class BroadcastSocket {
     }
 
     public boolean isSearching(){
-        synchronized (monitor){
+        synchronized(monitor){
             return receiver != null;
         }
     }
 
-    private void run() {
+    private void run(){
         UDPSocket udp = this.udp;
         DatagramPacket receivingPacket = this.receivingPacket;
         byte[] buffer = receivingPacket.getData();
         byte[] uuid = this.uuid;
 
-        while (!udp.isClosed()){
-            try {
+        while(!udp.isClosed()){
+            try{
                 udp.receive(receivingPacket);
-            } catch (IOException e) {
-                if (udp.isClosed()){
+            }catch(IOException e){
+                if(udp.isClosed()){
                     break;
-                } else {
+                }else{
                     continue;
                 }
             }
 
             int length = receivingPacket.getLength();
-            if (length < LocatorUtils.minMsgLength){
+            if(length < LocatorUtils.minMsgLength){
                 continue;
             }
 
             boolean startsWithUUID = LocatorUtils.startsWithUUID(buffer, uuid);
-            if (!startsWithUUID
-                    || !LocatorUtils.isResponse(buffer)){
+            if(!startsWithUUID
+            || !LocatorUtils.isResponse(buffer)){
                 continue;
             }
 
-            synchronized (monitor){
+            synchronized(monitor){
                 ReceiverBuffer receiver = this.receiver;
-                if (LocatorUtils.getSeq(buffer) != currentSeq || receiver == null) continue;
+                if(LocatorUtils.getSeq(buffer) != currentSeq || receiver == null) continue;
 
                 InetAddress address = receivingPacket.getAddress();
                 int port = receivingPacket.getPort();
                 Address addr = new Address(address, port);
-                if (!receiver.cointains(addr)){
+                if(!receiver.cointains(addr)){
                     receiver.add(addr);
 
                     Object userResponse = serializer.deserialize(buffer, 21, length - 21);
@@ -189,25 +190,26 @@ public class BroadcastSocket {
         sendingPacket.setData(data);
         sendingPacket.setAddress(address);
         sendingPacket.setPort(port);
-        try {
+        try{
             udp.send(sendingPacket);
-        } catch (IOException e) {}
+        }catch(IOException e){
+        }
     }
 
 
-    private static class ReceiverBuffer {
+    private static class ReceiverBuffer{
         BroadcastReceiver receiver;
-        Array<Address> respondedAddresses;
+        ArrayList<Address> respondedAddresses;
 
-        public ReceiverBuffer(BroadcastReceiver receiver) {
+        public ReceiverBuffer(BroadcastReceiver receiver){
             this.receiver = receiver;
-            this.respondedAddresses = new Array<Address>();
+            this.respondedAddresses = new ArrayList<Address>();
         }
 
         public boolean cointains(Address address){
-            for (Address respondedAddress : respondedAddresses) {
-                if (address.address.equals(respondedAddress.address)
-                        && address.port == respondedAddress.port) return true;
+            for(Address respondedAddress : respondedAddresses){
+                if(address.address.equals(respondedAddress.address)
+                && address.port == respondedAddress.port) return true;
             }
             return false;
         }
@@ -217,11 +219,11 @@ public class BroadcastSocket {
         }
     }
 
-    private static class Address {
+    private static class Address{
         InetAddress address;
         int port;
 
-        public Address(InetAddress address, int port) {
+        public Address(InetAddress address, int port){
             this.address = address;
             this.port = port;
         }

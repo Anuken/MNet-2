@@ -5,7 +5,6 @@ import org.junit.Test;
 import ru.maklas.mnet2.objects.ConnectionRequest;
 import ru.maklas.mnet2.objects.ConnectionResponse;
 import ru.maklas.mnet2.objects.UpdateObject;
-import ru.maklas.mnet2.serialization.Serializer;
 
 import java.net.InetAddress;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -21,13 +20,13 @@ public class TestSerializedSend implements ServerAuthenticator{
     public static final int port = 9002;
 
     @Test
-    public void testSendSerialized() throws Exception {
+    public void testSendSerialized() throws Exception{
         final AtomicInteger received = new AtomicInteger();
 
         ServerSocket serverSocket = TestUtils.newServerSocket(TestUtils.udp(port, 200, 0), this);
-        TestUtils.startUpdating(serverSocket, 16, new SocketProcessor() {
+        TestUtils.startUpdating(serverSocket, 16, new SocketProcessor(){
             @Override
-            public void process(Socket s, Object o) {
+            public void process(Socket s, Object o){
                 received.getAndIncrement();
                 System.out.println(o);
             }
@@ -60,14 +59,13 @@ public class TestSerializedSend implements ServerAuthenticator{
     }
 
 
-
     @Override
-    public void acceptConnection(Connection conn) {
+    public void acceptConnection(Connection conn){
         System.out.println("Received connection request: " + conn);
 
-        if ((conn.getRequest() instanceof ConnectionRequest)
-                && "123".equals(((ConnectionRequest) conn.getRequest()).getPassword())){
-            ConnectionResponse response = new ConnectionResponse("Welcome, " + ((ConnectionRequest) conn.getRequest()).getName() + "!");
+        if((conn.getRequest() instanceof ConnectionRequest)
+        && "123".equals(((ConnectionRequest)conn.getRequest()).getPassword())){
+            ConnectionResponse response = new ConnectionResponse("Welcome, " + ((ConnectionRequest)conn.getRequest()).getName() + "!");
             System.out.println("Responding with " + response);
             Socket socket = conn.accept(response);
         }

@@ -1,11 +1,11 @@
 package ru.maklas.mnet2;
 
-public class BigStorage {
+public class BigStorage{
 
-    private int totalPackets;
     public SortedIntList<byte[]> parts;
+    private int totalPackets;
 
-    public BigStorage(int totalPackets) {
+    public BigStorage(int totalPackets){
         this.totalPackets = totalPackets;
         parts = new SortedIntList<byte[]>();
     }

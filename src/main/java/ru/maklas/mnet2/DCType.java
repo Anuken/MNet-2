@@ -1,6 +1,6 @@
 package ru.maklas.mnet2;
 
-public class DCType {
+public class DCType{
 
     public static final String TIME_OUT = "TIME_OUT";
     public static final String CLOSED = "CLOSED";

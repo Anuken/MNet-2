@@ -11,12 +11,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-public class TestConnection implements ServerAuthenticator {
+public class TestConnection implements ServerAuthenticator{
 
     public static final int port = 9000;
 
     @Test
-    public void testConnections() throws Exception {
+    public void testConnections() throws Exception{
 
         ServerSocket serverSocket = TestUtils.newServerSocket(TestUtils.udp(port, 250, 50), this);
         TestUtils.startUpdating(serverSocket, 16);
@@ -29,13 +29,13 @@ public class TestConnection implements ServerAuthenticator {
 
         assertEquals(ResponseType.ACCEPTED, response.getType());
         assertNotNull(response.getResponse());
-        assertEquals("Welcome, maklas!", ((ConnectionResponse) response.getResponse()).getWelcome());
+        assertEquals("Welcome, maklas!", ((ConnectionResponse)response.getResponse()).getWelcome());
 
         final AtomicInteger counter = new AtomicInteger(0);
-        for (int i = 0; i < 200; i++) {
-            client.update(new SocketProcessor() {
+        for(int i = 0; i < 200; i++){
+            client.update(new SocketProcessor(){
                 @Override
-                public void process(Socket sock, Object o) {
+                public void process(Socket sock, Object o){
                     Log.trace("Client received " + (counter.getAndIncrement()) + ":  " + o);
                 }
             });
@@ -46,7 +46,7 @@ public class TestConnection implements ServerAuthenticator {
         Log.trace("Checking result...");
         assertEquals(1000, counter.get());
 
-        if (client.isConnected()){
+        if(client.isConnected()){
             client.close();
         }
 
@@ -54,16 +54,16 @@ public class TestConnection implements ServerAuthenticator {
     }
 
     @Override
-    public void acceptConnection(Connection conn) {
+    public void acceptConnection(Connection conn){
         System.out.println("Received connection request: " + conn);
 
-        if ((conn.getRequest() instanceof ConnectionRequest)
-            && "123".equals(((ConnectionRequest) conn.getRequest()).getPassword())){
-            ConnectionResponse response = new ConnectionResponse("Welcome, " + ((ConnectionRequest) conn.getRequest()).getName() + "!");
+        if((conn.getRequest() instanceof ConnectionRequest)
+        && "123".equals(((ConnectionRequest)conn.getRequest()).getPassword())){
+            ConnectionResponse response = new ConnectionResponse("Welcome, " + ((ConnectionRequest)conn.getRequest()).getName() + "!");
             System.out.println("Responding with " + response);
             Socket socket = conn.accept(response);
 
-            for (int i = 0; i < 1000; i++) {
+            for(int i = 0; i < 1000; i++){
                 socket.send(new UpdateObject("Big Random String", 100, 200, i));
             }
         }

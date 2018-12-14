@@ -15,22 +15,22 @@ public class TraficCounterUDPSocket implements UDPSocket{
     AtomicLong receivePacketCounter = new AtomicLong();
     AtomicLong receiveSizeCounter = new AtomicLong();
 
-    public TraficCounterUDPSocket(final UDPSocket delegate, final int refreshRate, final Listener listener) {
+    public TraficCounterUDPSocket(final UDPSocket delegate, final int refreshRate, final Listener listener){
         this.delegate = delegate;
 
-        new Thread(new Runnable() {
+        new Thread(new Runnable(){
             @Override
-            public void run() {
-                try {
+            public void run(){
+                try{
 
-                    while (!delegate.isClosed()) {
+                    while(!delegate.isClosed()){
                         long before = System.currentTimeMillis();
                         Thread.sleep(refreshRate);
                         long timePassed = System.currentTimeMillis() - before;
 
                         listener.tick(sendPacketCounter.getAndSet(0), sendSizeCounter.getAndSet(0), receivePacketCounter.getAndSet(0), receiveSizeCounter.getAndSet(0), timePassed);
                     }
-                } catch (InterruptedException e) {
+                }catch(InterruptedException e){
                     e.printStackTrace();
                 }
 
@@ -40,50 +40,50 @@ public class TraficCounterUDPSocket implements UDPSocket{
 
 
     @Override
-    public int getLocalPort() {
+    public int getLocalPort(){
         return delegate.getLocalPort();
     }
 
     @Override
-    public void send(DatagramPacket packet) throws IOException {
+    public void send(DatagramPacket packet) throws IOException{
         delegate.send(packet);
         sendPacketCounter.incrementAndGet();
         sendSizeCounter.addAndGet(packet.getLength());
     }
 
     @Override
-    public void receive(DatagramPacket packet) throws IOException {
+    public void receive(DatagramPacket packet) throws IOException{
         delegate.receive(packet);
         receivePacketCounter.incrementAndGet();
         receiveSizeCounter.addAndGet(packet.getLength());
     }
 
     @Override
-    public void setReceiveTimeout(int millis) throws SocketException {
+    public void setReceiveTimeout(int millis) throws SocketException{
         delegate.setReceiveTimeout(millis);
     }
 
     @Override
-    public void connect(InetAddress address, int port) {
+    public void connect(InetAddress address, int port){
         delegate.connect(address, port);
     }
 
     @Override
-    public void close() {
+    public void close(){
         delegate.close();
     }
 
     @Override
-    public boolean isClosed() {
+    public boolean isClosed(){
         return delegate.isClosed();
     }
 
     @Override
-    public void setBroadcast(boolean enabled) throws SocketException {
+    public void setBroadcast(boolean enabled) throws SocketException{
         delegate.setBroadcast(enabled);
     }
 
-    public interface Listener {
+    public interface Listener{
 
         void tick(long packetsSent, long sentPacketsSize, long packetsReceived, long receivedPacketsSize, long timePassed);
     }
@@ -94,17 +94,17 @@ public class TraficCounterUDPSocket implements UDPSocket{
         long total;
 
         @Override
-        public void tick(long sendPackets, long sendSize, long receivePackets, long receiveSize, long timePassed) {
-            if (sendPackets + receivePackets == 0) return;
+        public void tick(long sendPackets, long sendSize, long receivePackets, long receiveSize, long timePassed){
+            if(sendPackets + receivePackets == 0) return;
 
             //28 - UDP header size
             long bytesSent = sendSize + (28 * sendPackets);
             long bytesReceived = receiveSize + (28 * receivePackets);
 
             total += bytesSent + bytesReceived;
-            double bytesPerSecondSend = bytesSent / (((double) timePassed) / 1000);
-            double bytesPerSecondReceived = bytesReceived / (((double) timePassed) / 1000);
-            tick((float) bytesPerSecondSend / 1024, (float) bytesPerSecondReceived / 1024, total);
+            double bytesPerSecondSend = bytesSent / (((double)timePassed) / 1000);
+            double bytesPerSecondReceived = bytesReceived / (((double)timePassed) / 1000);
+            tick((float)bytesPerSecondSend / 1024, (float)bytesPerSecondReceived / 1024, total);
         }
 
         public abstract void tick(float kbpsSendSpeed, float kbpsReceiveSpeed, long totalBytes);

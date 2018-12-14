@@ -1,7 +1,7 @@
-package ru.maklas.mnet2;
+package ru.maklas.mnet2.broadcast;
 
-import com.badlogic.gdx.utils.AtomicQueue;
-import ru.maklas.mnet2.serialization.Serializer;
+import ru.maklas.mnet2.Serializer;
+import ru.maklas.mnet2.collection.AtomicQueue;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -10,7 +10,7 @@ import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.HashMap;
 
-public class BroadcastServlet {
+public class BroadcastServlet{
 
     private static int threadCounter;
 
@@ -20,10 +20,10 @@ public class BroadcastServlet {
     private final byte[] uuid;
     private final Serializer serializer;
     private final BroadcastProcessor processor;
-    private volatile boolean enabled = true;
     private final Thread thread;
     private final HashMap<Pack, byte[]> memory = new HashMap<Pack, byte[]>();
     private final AtomicQueue<Request> requestAtomicQueue = new AtomicQueue<Request>(1000);
+    private volatile boolean enabled = true;
 
 
     /**
@@ -34,7 +34,7 @@ public class BroadcastServlet {
      * @param processor Processor that will process Locators requests and respond to them.
      * @throws Exception if address can't be parsed.
      */
-    public BroadcastServlet(int port, int bufferSize, String uuid, Serializer serializer, BroadcastProcessor processor) throws Exception {
+    public BroadcastServlet(int port, int bufferSize, String uuid, Serializer serializer, BroadcastProcessor processor) throws Exception{
         this(port, bufferSize, uuid.getBytes(), serializer, processor);
     }
 
@@ -43,8 +43,8 @@ public class BroadcastServlet {
      * Creates new UDP-listening thread
      * @param port Port which Servlet is listening. Must be the same for Locator.
      * @param bufferSize Max size of requests and responses. Make sure It's above any byte[] you're trying to send
-     * @param uuid  Unique id for application. So that no other apps that use this library could see your request.
-     *             {@link BroadcastSocket} must have the same UUID in oder to receive requests!
+     * @param uuid Unique id for application. So that no other apps that use this library could see your request.
+     * {@link BroadcastSocket} must have the same UUID in oder to receive requests!
      * @param processor Processor that will process Locators requests and respond to them.
      * @throws Exception if address can't be parsed.
      */
@@ -55,9 +55,9 @@ public class BroadcastServlet {
         this.uuid = LocatorUtils.normalizeUUID(uuid);
         this.serializer = serializer;
         this.processor = processor;
-        thread = new Thread(new Runnable() {
+        thread = new Thread(new Runnable(){
             @Override
-            public void run() {
+            public void run(){
                 BroadcastServlet.this.run();
             }
         }, "BroadcastServlet-" + threadCounter++);
@@ -85,28 +85,28 @@ public class BroadcastServlet {
     }
 
     public void update(){
-        if (isClosed() || !isEnabled()) return;
+        if(isClosed() || !isEnabled()) return;
 
         Request req = requestAtomicQueue.poll();
-        if (req == null) return;
+        if(req == null) return;
 
-        while (req != null){
+        while(req != null){
             Pack pack = req.pack;
 
             byte[] oldResponse = memory.get(pack);
-            if (oldResponse == null){
-                if (memory.size() > 16) memory.clear();
+            if(oldResponse == null){
+                if(memory.size() > 16) memory.clear();
                 byte[] serialized = serializer.serialize(processor.process(pack.address, pack.port, req.request));
                 oldResponse = LocatorUtils.createResponse(uuid, pack.seq, serialized);
                 memory.put(pack, oldResponse);
             }
             sendData(pack.address, pack.port, oldResponse);
-            if (isClosed() || !isEnabled()) return;
+            if(isClosed() || !isEnabled()) return;
             req = requestAtomicQueue.poll();
         }
     }
 
-    public Serializer getSerializer() {
+    public Serializer getSerializer(){
         return serializer;
     }
 
@@ -128,27 +128,27 @@ public class BroadcastServlet {
         byte[] receivingBuffer = receivingPacket.getData();
         Serializer serializer = this.serializer;
 
-        while (!socket.isClosed()) {
+        while(!socket.isClosed()){
 
-            try {
+            try{
                 socket.receive(receivingPacket);
-            } catch (IOException e) {
-                if (socket.isClosed())
+            }catch(IOException e){
+                if(socket.isClosed())
                     break;
                 else
                     continue;
             }
 
-            if (!enabled){
+            if(!enabled){
                 continue;
             }
 
             int length = receivingPacket.getLength();
-            if (length < LocatorUtils.minMsgLength){
+            if(length < LocatorUtils.minMsgLength){
                 continue;
             }
             boolean startsWithUUID = LocatorUtils.startsWithUUID(receivingBuffer, uuid);
-            if (!startsWithUUID || !LocatorUtils.isRequest(receivingBuffer)){
+            if(!startsWithUUID || !LocatorUtils.isRequest(receivingBuffer)){
                 continue;
             }
 
@@ -158,9 +158,9 @@ public class BroadcastServlet {
 
 
             Object userRequest;
-            try {
+            try{
                 userRequest = serializer.deserialize(receivingBuffer, 21, length - 21);
-            } catch (Exception ignore) {
+            }catch(Exception ignore){
                 byte[] userData = new byte[length - 21];
                 System.arraycopy(receivingBuffer, 21, userData, 0, length - 21);
                 System.err.println("Failed to deserialize broadcast request: " + Arrays.toString(userData));
@@ -177,36 +177,37 @@ public class BroadcastServlet {
         packet.setData(data);
         packet.setAddress(address);
         packet.setPort(port);
-        try {
+        try{
             socket.send(packet);
-        } catch (IOException ignore) {}
+        }catch(IOException ignore){
+        }
     }
 
-    private class Pack {
+    private class Pack{
         private final InetAddress address;
         private final int port;
         private final int seq;
 
-        public Pack(InetAddress address, int port, int seq) {
+        public Pack(InetAddress address, int port, int seq){
             this.address = address;
             this.port = port;
             this.seq = seq;
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+        public boolean equals(Object o){
+            if(this == o) return true;
+            if(o == null || getClass() != o.getClass()) return false;
 
-            Pack pack = (Pack) o;
+            Pack pack = (Pack)o;
 
-            if (port != pack.port) return false;
-            if (seq != pack.seq) return false;
+            if(port != pack.port) return false;
+            if(seq != pack.seq) return false;
             return address.equals(pack.address);
         }
 
         @Override
-        public int hashCode() {
+        public int hashCode(){
             int result = address.hashCode();
             result = 31 * result + port;
             result = 31 * result + seq;
@@ -214,11 +215,11 @@ public class BroadcastServlet {
         }
     }
 
-    private class Request {
+    private class Request{
         Pack pack;
         Object request;
 
-        public Request(Pack pack, Object request) {
+        public Request(Pack pack, Object request){
             this.pack = pack;
             this.request = request;
         }

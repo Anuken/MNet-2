@@ -1,6 +1,6 @@
 package ru.maklas.mnet2;
 
-public enum SocketState {
+public enum SocketState{
 
     /**
      * Socket has never been connected to desired source

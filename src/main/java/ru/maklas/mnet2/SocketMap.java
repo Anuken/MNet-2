@@ -1,14 +1,13 @@
 package ru.maklas.mnet2;
 
-import com.badlogic.gdx.utils.Array;
-
 import java.net.DatagramPacket;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Iterator;
 
-class SocketMap {
+class SocketMap{
 
-    Array<SocketWrap> sockets = new Array<SocketWrap>();
+    ArrayList<SocketWrap> sockets = new ArrayList<SocketWrap>();
 
     public void put(SocketImpl socket){
         put(socket.address, socket.port, socket);
@@ -23,8 +22,8 @@ class SocketMap {
     }
 
     public synchronized SocketImpl get(InetAddress address, int port){
-        for (SocketWrap socket : sockets) {
-            if (socket.address.equals(address) && socket.port == port){
+        for(SocketWrap socket : sockets){
+            if(socket.address.equals(address) && socket.port == port){
                 return socket.socket;
             }
         }
@@ -32,29 +31,29 @@ class SocketMap {
     }
 
     public synchronized void remove(SocketImpl socket){
-        for (Iterator<SocketWrap> iter = sockets.iterator(); iter.hasNext();) {
+        for(Iterator<SocketWrap> iter = sockets.iterator(); iter.hasNext(); ){
             SocketWrap wrap = iter.next();
-            if (wrap.socket == socket){
+            if(wrap.socket == socket){
                 iter.remove();
                 return;
             }
         }
     }
 
-    public synchronized void clear() {
+    public synchronized void clear(){
         sockets.clear();
     }
 
-    public synchronized int size() {
-        return sockets.size;
+    public synchronized int size(){
+        return sockets.size();
     }
 
-    static class SocketWrap {
+    static class SocketWrap{
         InetAddress address;
         int port;
         SocketImpl socket;
 
-        public SocketWrap(InetAddress address, int port, SocketImpl socket) {
+        public SocketWrap(InetAddress address, int port, SocketImpl socket){
             this.address = address;
             this.port = port;
             this.socket = socket;

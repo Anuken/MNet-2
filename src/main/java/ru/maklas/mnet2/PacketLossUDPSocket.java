@@ -20,7 +20,7 @@ public class PacketLossUDPSocket implements UDPSocket{
      * @param delegate which socket to use to send Datagrams
      * @param sendPacketLossChance Probability of a packet loss while sending data. Must be >=0 and <=100. Measured in percents %
      */
-    public PacketLossUDPSocket(UDPSocket delegate, double sendPacketLossChance) {
+    public PacketLossUDPSocket(UDPSocket delegate, double sendPacketLossChance){
         this(delegate, sendPacketLossChance, 0);
     }
 
@@ -31,9 +31,9 @@ public class PacketLossUDPSocket implements UDPSocket{
      * @param sendPacketLossChance Probability of a packet loss while sending data. Must be >=0 and <=100. Measured in percents %
      * @param receivePacketLossChance Probability of a packet loss while receiving data. Must be >=0 and <=100. Measured in percents %
      */
-    public PacketLossUDPSocket(UDPSocket delegate, double sendPacketLossChance, double receivePacketLossChance) {
-        if (sendPacketLossChance < 0 || sendPacketLossChance > 100
-                || receivePacketLossChance < 0 || receivePacketLossChance > 100){
+    public PacketLossUDPSocket(UDPSocket delegate, double sendPacketLossChance, double receivePacketLossChance){
+        if(sendPacketLossChance < 0 || sendPacketLossChance > 100
+        || receivePacketLossChance < 0 || receivePacketLossChance > 100){
             throw new RuntimeException("Packet loss chance must be from 0 to 100%");
         }
         this.delegate = delegate;
@@ -42,24 +42,24 @@ public class PacketLossUDPSocket implements UDPSocket{
     }
 
     @Override
-    public int getLocalPort() {
+    public int getLocalPort(){
         return delegate.getLocalPort();
     }
 
     @Override
-    public void send(DatagramPacket packet) throws IOException {
-        if (Math.random() > sendLoss)
+    public void send(DatagramPacket packet) throws IOException{
+        if(Math.random() > sendLoss)
             delegate.send(packet);
     }
 
     @Override
-    public void receive(DatagramPacket packet) throws IOException {
-        if (receiveLoss == 0){
+    public void receive(DatagramPacket packet) throws IOException{
+        if(receiveLoss == 0){
             delegate.receive(packet);
-        } else {
-            while (true){
+        }else{
+            while(true){
                 delegate.receive(packet);
-                if (Math.random() > receiveLoss){
+                if(Math.random() > receiveLoss){
                     return;
                 }
             }
@@ -67,27 +67,27 @@ public class PacketLossUDPSocket implements UDPSocket{
     }
 
     @Override
-    public void setReceiveTimeout(int millis) throws SocketException {
+    public void setReceiveTimeout(int millis) throws SocketException{
         delegate.setReceiveTimeout(millis);
     }
 
     @Override
-    public void close() {
+    public void close(){
         delegate.close();
     }
 
     @Override
-    public boolean isClosed() {
+    public boolean isClosed(){
         return delegate.isClosed();
     }
 
     @Override
-    public void connect(InetAddress address, int port) {
+    public void connect(InetAddress address, int port){
         delegate.connect(address, port);
     }
 
     @Override
-    public void setBroadcast(boolean enabled) throws SocketException {
+    public void setBroadcast(boolean enabled) throws SocketException{
         delegate.setBroadcast(enabled);
     }
 }

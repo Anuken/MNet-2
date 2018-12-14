@@ -1,30 +1,35 @@
 package ru.maklas.mnet2.objects;
 
-import com.esotericsoftware.kryo.Kryo;
-import ru.maklas.mnet2.Supplier;
-import ru.maklas.mnet2.serialization.KryoSerializerProvider;
+import ru.maklas.mnet2.Serializer;
 
-public class MySerializer extends KryoSerializerProvider{
+public class MySerializer implements Serializer{
 
-    public MySerializer() {
-        this(512);
-    }
-    public MySerializer(int bufferSize) {
-        super(bufferSize, new Supplier<Kryo>() {
-            @Override
-            public Kryo get() {
-                return fillKryo(new Kryo());
-            }
-        });
+    public MySerializer(){
+
     }
 
+    @Override
+    public byte[] serialize(Object o){
+        return new byte[0];
+    }
 
-    private static Kryo fillKryo(Kryo kryo){
+    @Override
+    public byte[] serialize(Object o, int offset){
+        return new byte[0];
+    }
 
-        kryo.register(ConnectionRequest.class, 1);
-        kryo.register(ConnectionResponse.class, 2);
-        kryo.register(UpdateObject.class, 3);
+    @Override
+    public int serialize(Object o, byte[] buffer, int offset){
+        return 0;
+    }
 
-        return kryo;
+    @Override
+    public Object deserialize(byte[] bytes){
+        return null;
+    }
+
+    @Override
+    public Object deserialize(byte[] bytes, int offset, int length){
+        return null;
     }
 }

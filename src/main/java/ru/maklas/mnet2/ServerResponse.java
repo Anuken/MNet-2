@@ -7,7 +7,7 @@ package ru.maklas.mnet2;
  * <li>Connection timeout</li>
  * <li>Connection refuse e.g. Server didn't accept your password or whatever. Also contains response</li>
  */
-public class ServerResponse {
+public class ServerResponse{
 
     /**
      * Type of response. If type is {@link ResponseType#ACCEPTED} then socket is considered to be connected
@@ -17,12 +17,12 @@ public class ServerResponse {
     private ResponseType type;
     private Object response;
 
-    public ServerResponse(ResponseType type, Object response) {
+    public ServerResponse(ResponseType type, Object response){
         this.type = type;
         this.response = response;
     }
 
-    public ServerResponse(ResponseType type) {
+    public ServerResponse(ResponseType type){
         this.type = type;
     }
 
@@ -30,7 +30,7 @@ public class ServerResponse {
      * Type of response. If type is {@link ResponseType#ACCEPTED} then socket is considered to be connected
      * and you can expect to receive data. Nothing happens in any other cases
      */
-    public ResponseType getType() {
+    public ResponseType getType(){
         return type;
     }
 
@@ -38,15 +38,15 @@ public class ServerResponse {
      * Response data that server responded with. most likely not null if type is ACCEPTED or NOT_ACCEPTED
      * Can be null
      */
-    public Object getResponse() {
+    public Object getResponse(){
         return response;
     }
 
     @Override
-    public String toString() {
+    public String toString(){
         return "ServerResponse{" +
-                "type=" + type +
-                ", response=" + (response == null ? "null" : response.toString()) +
-                '}';
+        "type=" + type +
+        ", response=" + (response == null ? "null" : response.toString()) +
+        '}';
     }
 }

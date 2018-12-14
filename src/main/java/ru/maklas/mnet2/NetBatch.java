@@ -1,7 +1,6 @@
 package ru.maklas.mnet2;
 
-import com.badlogic.gdx.utils.Array;
-import ru.maklas.mnet2.serialization.Serializer;
+import java.util.ArrayList;
 
 /**
  * <p>You can send your data via MNet in batches. Just create new instance and put all serializable objects inside of it,
@@ -10,17 +9,17 @@ import ru.maklas.mnet2.serialization.Serializer;
  * <p>NetBatch is reusable. Just call clear() after sending it and you can fill it up again.
  * Be careful. If you try to send too much data it won't fit with
  */
-public class NetBatch {
+public class NetBatch{
 
-    private final Array<Object> objects;
+    private final ArrayList<Object> objects;
     private final ByteBatch byteBatch = new ByteBatch();
 
-    public NetBatch(int minSize) {
-        objects = new Array<Object>(minSize);
+    public NetBatch(int minSize){
+        objects = new ArrayList<Object>(minSize);
     }
 
-    public NetBatch() {
-        this.objects = new Array<Object>();
+    public NetBatch(){
+        this.objects = new ArrayList<Object>();
     }
 
     public void add(Object o){
@@ -28,7 +27,7 @@ public class NetBatch {
     }
 
     public int size(){
-        return objects.size;
+        return objects.size();
     }
 
     public Object get(int i){
@@ -36,11 +35,11 @@ public class NetBatch {
     }
 
     public Object remove(int i){
-        return objects.removeIndex(i);
+        return objects.remove(i);
     }
 
     public boolean remove(Object o){
-        return objects.removeValue(o, true);
+        return objects.remove(o);
     }
 
     public void clear(){
@@ -53,7 +52,7 @@ public class NetBatch {
     public ByteBatch convertAndGet(Serializer serializer){
         ByteBatch byteBatch = this.byteBatch;
         byteBatch.clear();
-        for (Object o : objects) {
+        for(Object o : objects){
             byteBatch.add(serializer.serialize(o));
         }
         return byteBatch;

@@ -1,6 +1,6 @@
 package ru.maklas.mnet2;
 
-public enum ResponseType {
+public enum ResponseType{
 
     /**
      * Server accepted your request. You are now connected
@@ -20,6 +20,6 @@ public enum ResponseType {
     /**
      * Check state of socket. Looks like you were already connected/connecting or socket was closed.
      */
-    WRONG_STATE;
+    WRONG_STATE
 
 }

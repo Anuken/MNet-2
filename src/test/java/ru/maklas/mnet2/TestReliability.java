@@ -16,7 +16,7 @@ public class TestReliability implements ServerAuthenticator{
     public static final int port = 9001;
 
     @Test
-    public void reliabilityTest() throws Exception {
+    public void reliabilityTest() throws Exception{
         SocketImpl.receivingQueueSize = 10000;
 
         ServerSocket serverSocket = TestUtils.newServerSocket(TestUtils.udp(port, 200, 50), this);
@@ -30,11 +30,11 @@ public class TestReliability implements ServerAuthenticator{
 
 
         final AtomicInteger counter = new AtomicInteger(0);
-        for (int i = 0; i < 200; i++) {
-            client.update(new SocketProcessor() {
+        for(int i = 0; i < 200; i++){
+            client.update(new SocketProcessor(){
                 @Override
-                public void process(Socket sock, Object o) {
-                    Assert.assertEquals(counter.getAndIncrement(), ((UpdateObject) o).getForce());
+                public void process(Socket sock, Object o){
+                    Assert.assertEquals(counter.getAndIncrement(), ((UpdateObject)o).getForce());
                 }
             });
             Thread.sleep(100);
@@ -48,22 +48,22 @@ public class TestReliability implements ServerAuthenticator{
 
 
     @Override
-    public void acceptConnection(Connection conn) {
+    public void acceptConnection(Connection conn){
         System.out.println("Received connection request: " + conn);
 
-        if ((conn.getRequest() instanceof ConnectionRequest)
-                && "123".equals(((ConnectionRequest) conn.getRequest()).getPassword())){
-            ConnectionResponse response = new ConnectionResponse("Welcome, " + ((ConnectionRequest) conn.getRequest()).getName() + "!");
+        if((conn.getRequest() instanceof ConnectionRequest)
+        && "123".equals(((ConnectionRequest)conn.getRequest()).getPassword())){
+            ConnectionResponse response = new ConnectionResponse("Welcome, " + ((ConnectionRequest)conn.getRequest()).getName() + "!");
             System.out.println("Responding with " + response);
             Socket socket = conn.accept(response);
 
 
-            for (int i = 0; i < 5000; i++) {
+            for(int i = 0; i < 5000; i++){
                 socket.send(new UpdateObject("Big Random String", 100, 200, i));
             }
 
             NetBatch batch = new NetBatch();
-            for (int i = 5000; i < 10000; i++) {
+            for(int i = 5000; i < 10000; i++){
                 batch.add(new UpdateObject("Big Random String", 500, 600, i));
             }
             socket.send(batch);
