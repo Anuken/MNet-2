@@ -76,6 +76,8 @@ public interface Socket{
      */
     void update(SocketProcessor processor);
 
+    void setDiscoverer(DiscoveryHandler discoverer);
+
     /**
      * Stops receiving objects
      */
