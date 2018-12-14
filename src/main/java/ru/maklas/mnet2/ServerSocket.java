@@ -74,7 +74,7 @@ public class ServerSocket{
                 DatagramPacket dpacket = discoverer.writeDiscoveryData();
                 dpacket.setAddress(packet.getAddress());
                 try{
-                    udp.send(packet);
+                    udp.send(dpacket);
                 }catch(IOException ignored){}
 
                 continue;
