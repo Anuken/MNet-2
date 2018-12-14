@@ -8,6 +8,8 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.util.ArrayList;
 
+import static ru.maklas.mnet2.PacketType.discovery;
+
 /**
  * Job of a server socket is to accept new connections and handle subsockets.
  */
@@ -16,6 +18,7 @@ public class ServerSocket{
     final UDPSocket udp;
     final SocketMap socketMap;
     private final ServerAuthenticator authenticator;
+    private DiscoveryHandler discoverer;
     DatagramPacket sendPacket; //update thread
     int inactivityTimeout;
     int bufferSize;
@@ -25,7 +28,7 @@ public class ServerSocket{
     Supplier<Serializer> serializerSupplier;
     private AtomicQueue<ConnectionRequest> connectionRequests;
 
-    public ServerSocket(int port, ServerAuthenticator authenticator, Supplier<Serializer> serializerSupplier) throws SocketException{
+    public ServerSocket(int port, ServerAuthenticator authenticator, Supplier<Serializer> serializerSupplier, DiscoveryHandler discoverer) throws SocketException{
         this(new JavaUDPSocket(port), 512, 15000, 2500, 125, authenticator, serializerSupplier);
     }
 
@@ -42,6 +45,10 @@ public class ServerSocket{
         this.serializerSupplier = serializerSupplier;
         this.serializer = serializerSupplier.get();
         new Thread(ServerSocket.this::run).start();
+    }
+
+    public void setDiscoverer(DiscoveryHandler discoverer){
+        this.discoverer = discoverer;
     }
 
     void run(){
@@ -62,6 +69,19 @@ public class ServerSocket{
             }
             len = packet.getLength();
             byte type = buffer[0];
+            if(type == discovery){
+                if(discoverer == null){
+                    continue;
+                }
+
+                DatagramPacket dpacket = discoverer.writeDiscoveryData();
+                dpacket.setAddress(packet.getAddress());
+                try{
+                    udp.send(packet);
+                }catch(IOException ignored){}
+
+                continue;
+            }
             if(len <= 5) continue;
 
             SocketImpl mSocket = socketMap.get(packet);

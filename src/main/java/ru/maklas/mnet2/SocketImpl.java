@@ -45,7 +45,6 @@ public class SocketImpl implements Socket{
     private boolean isClientSocket;
     private volatile int lastInsertedSeq = -1;
     private Serializer serializer;
-    private DiscoveryHandler discoverer;
     private FastPool<ResendPacket> sendPacketPool = new FastPool<ResendPacket>(){
         @Override
         protected ResendPacket newObject(){
@@ -155,22 +154,15 @@ public class SocketImpl implements Socket{
         this.pingResponsePacket.setPort(port);
     }
 
-    public void setDiscoverer(DiscoveryHandler discoverer){
-        this.discoverer = discoverer;
-    }
-
     @Override
     public void connectAsync(final Object request, final int timeout, final ServerResponseHandler handler){
-        new Thread(new Runnable(){
-            @Override
-            public void run(){
-                try{
-                    ServerResponse connect = connect(request, timeout);
-                    handler.handle(connect);
-                }catch(IOException e){
-                    e.printStackTrace();
-                    handler.handle(new ServerResponse(ResponseType.WRONG_STATE, null));
-                }
+        new Thread(() -> {
+            try{
+                ServerResponse connect = connect(request, timeout);
+                handler.handle(connect);
+            }catch(IOException e){
+                e.printStackTrace();
+                handler.handle(new ServerResponse(ResponseType.WRONG_STATE, null));
             }
         }).start();
     }
@@ -654,18 +646,6 @@ public class SocketImpl implements Socket{
                 }else if(seq > expectSeq3){
                     addToWaitings(seq, new PingPacket(0));
                 }
-                break;
-            case discovery:
-                if(discoverer == null){
-                    break;
-                }
-
-                DatagramPacket packet = discoverer.writeDiscoveryData();
-                packet.setAddress(receivePacket.getAddress());
-                try{
-                    udp.send(packet);
-                }catch(IOException ignored){}
-
                 break;
             case pingResponse:
                 final long startingTime = extractLong(fullPacket, 5);
